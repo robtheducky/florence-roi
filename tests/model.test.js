@@ -2,9 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-import { orToProbability, estimate, safeDivide, msspSettlement, msspIncremental, sampleSizePerArm, solveIncreasing } from '../js/model/core.js';
-import { SCENARIOS } from '../js/assumptions.js';
-import { INPUTS, acoDefaults, compute } from '../js/model/aco.js';
+import { orToProbability, estimate, safeDivide, msspSettlement, msspIncremental, sampleSizePerArm, solveIncreasing, rng, drawParam, percentile, summarize } from '../js/model/core.js';
+import { INPUTS, acoDefaults, compute, settlementUnits } from '../js/model/aco.js';
 
 const data = JSON.parse(readFileSync(new URL('../data/acos.json', import.meta.url)));
 
@@ -105,6 +104,41 @@ test('solveIncreasing finds the root and reports unreachable targets', () => {
 
 // ---------- ACO dashboard ----------
 
+// ---------- Monte Carlo ----------
+
+test('seeded draws are reproducible and respect truncation', () => {
+  const spec = { dist: 'normal', mean: 0.77, sd: 0.07, min: 0, max: 1 };
+  const a = Array.from({ length: 5 }, ((r) => () => drawParam(spec, r))(rng(3)));
+  const b = Array.from({ length: 5 }, ((r) => () => drawParam(spec, r))(rng(3)));
+  assert.deepEqual(a, b);
+  const r = rng(1);
+  const wide = Array.from({ length: 5000 }, () => drawParam({ dist: 'normal', mean: 0.95, sd: 0.2, min: 0, max: 1 }, r));
+  assert.ok(wide.every((x) => x >= 0 && x <= 1));
+});
+
+test('draws match their distributions', () => {
+  const r = rng(11);
+  const n = Array.from({ length: 20000 }, () => drawParam({ dist: 'normal', mean: 0.5, sd: 0.1, min: 0, max: 1 }, r)).sort((x, y) => x - y);
+  near(percentile(n, 0.5), 0.5, 0.005);
+  near(percentile(n, 0.9) - percentile(n, 0.1), 2 * 1.2816 * 0.1, 0.01);
+  const l = Array.from({ length: 20000 }, () => drawParam({ dist: 'lognormal', median: 1.68, sdLog: 0.167 }, r)).sort((x, y) => x - y);
+  near(percentile(l, 0.5), 1.68, 0.02);
+  near(percentile(l, 0.975), 1.68 * Math.exp(1.96 * 0.167), 0.05);
+});
+
+test('summarize: percentiles, share above zero, and a bin edge at zero', () => {
+  const xs = Array.from({ length: 1000 }, (_, i) => i - 300); // -300..699
+  const s = summarize(xs);
+  near(s.probPositive, 699 / 1000, 1e-9);
+  near(s.p50, 199.5, 1e-9);
+  assert.ok(s.hist.some((b) => b.lo === 0 || b.hi === 0), 'zero is a bin edge');
+  near(s.hist.reduce((t, b) => t + b.share, 0), 1, 1e-9);
+});
+
+// ---------- ACO dashboard ----------
+
+const med = { medians: data.medians, draws: 400 };
+
 test('real ACO loads CMS values as defaults', () => {
   const aco = data.acos.find((a) => a.id === 'A1001');
   const { values, origin } = acoDefaults(aco, data.medians);
@@ -122,46 +156,62 @@ test('ACO without PY2024 results falls back to MSSP medians', () => {
   assert.equal(values.lossRate, 0);
 });
 
-test('gross and ACO net are monotonic: conservative <= base <= vendor-reported', () => {
-  for (const aco of [null, ...data.acos.filter((a) => a.hasResults).slice(0, 50)]) {
-    const values = acoDefaults(aco, data.medians).values;
-    const [c, b, v] = ['conservative', 'base', 'vendor'].map((s) => compute(values, s).result);
-    assert.ok(c.scale.gross <= b.scale.gross && b.scale.gross <= v.scale.gross, aco?.id);
-    assert.ok(c.acoNet <= b.acoNet && b.acoNet <= v.acoNet, aco?.id);
-    assert.ok(c.pilot.gross <= b.pilot.gross && b.pilot.gross <= v.pilot.gross, aco?.id);
-  }
+test('higher effect assumptions raise every outcome', () => {
+  const values = medianDefaults();
+  const low = compute({ ...values, engagementCenter: 50, readmitReductionCenter: 5 }, [], med).result;
+  const high = compute({ ...values, engagementCenter: 90, readmitReductionCenter: 25 }, [], med).result;
+  for (const k of ['pilotGross', 'gross', 'acoShare', 'acoNet']) assert.ok(low.dist[k].p50 < high.dist[k].p50, k);
+  assert.ok(low.dist.acoNet.probPositive <= high.dist.acoNet.probPositive);
 });
 
-test('break-even multiplier zeroes ACO net', () => {
+test('percentiles are ordered and the central case sits inside them', () => {
+  const r = compute(medianDefaults(), [], med).result;
+  for (const k of ['pilotNet', 'gross', 'acoNet']) {
+    const d = r.dist[k];
+    assert.ok(d.p10 <= d.p50 && d.p50 <= d.p90, k);
+  }
+  assert.ok(r.scale.gross >= r.dist.gross.p10 && r.scale.gross <= r.dist.gross.p90);
+});
+
+test('multiple ACOs settle separately and sum', () => {
+  const two = data.acos.filter((a) => a.hasResults).slice(0, 2);
   const values = medianDefaults();
-  const r = compute(values, 'base').result;
-  assert.ok(r.breakEven.aco > 0 && r.breakEven.aco < 1);
+  const units = settlementUnits(values, two, data.medians);
+  assert.equal(units.length, 2);
+  const both = compute(values, two, med).result.scale;
+  const each = two.map((a) => compute(acoDefaults(a, data.medians).values, [a], med).result.scale);
+  near(both.gross, each[0].gross + each[1].gross, 1e-3);
+  near(both.acoShare, each[0].acoShare + each[1].acoShare, 1e-3);
+});
+
+test('ACOs without results are left out of a multi-ACO selection', () => {
+  const withRes = data.acos.filter((a) => a.hasResults).slice(0, 2);
+  const without = data.acos.find((a) => !a.hasResults);
+  assert.equal(settlementUnits(medianDefaults(), [...withRes, without], data.medians).length, 2);
 });
 
 test('every ACO in the data computes without NaN or Infinity', () => {
   for (const aco of data.acos) {
     const values = acoDefaults(aco, data.medians).values;
-    for (const s of SCENARIOS) assert.deepEqual(badNumbers(compute(values, s.id)), [], `${aco.id} ${s.id}`);
+    assert.deepEqual(badNumbers(compute(values, [aco], { ...med, draws: 20 })), [], aco.id);
   }
 });
 
 test('zero enrollment and zero price produce no NaN or Infinity', () => {
   const zeroed = { ...medianDefaults(), lum: 0, pilotHTN: 0, pilotDM: 0, pilotHF: 0, pilotDischarges: 0, benchmarkTotal: 0 };
   const free = { ...medianDefaults(), pmpm: 0, episodeFee: 0 };
-  for (const values of [zeroed, free]) {
-    for (const s of SCENARIOS) assert.deepEqual(badNumbers(compute(values, s.id)), [], s.id);
-  }
+  for (const values of [zeroed, free]) assert.deepEqual(badNumbers(compute(values, [], med)), []);
 });
 
 test('blank and garbage inputs degrade to zero, not NaN', () => {
   const values = Object.fromEntries(INPUTS.map((i) => [i.id, i.id === 'pmpm' ? 'abc' : '']));
-  for (const s of SCENARIOS) assert.deepEqual(badNumbers(compute(values, s.id)), [], s.id);
+  assert.deepEqual(badNumbers(compute(values, [], med)), []);
 });
 
 test('pilot readmission metric flags when the pilot is underpowered', () => {
-  const r = compute(medianDefaults(), 'base').result;
-  const readmit = r.scorecard.find((x) => x.metric.startsWith('30-day'));
-  assert.equal(readmit.detectable, false);
-  const big = compute({ ...medianDefaults(), pilotDischarges: 50000 }, 'base').result;
-  assert.equal(big.scorecard.find((x) => x.metric.startsWith('30-day')).detectable, true);
+  const r = compute(medianDefaults(), [], med).result;
+  assert.equal(r.scorecard.find((x) => x.id === 'readmit').provable, false);
+  assert.equal(r.scorecard.find((x) => x.id === 'adherence').provable, true);
+  const big = compute({ ...medianDefaults(), pilotDischarges: 50000 }, [], med).result;
+  assert.equal(big.scorecard.find((x) => x.id === 'readmit').provable, true);
 });

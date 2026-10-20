@@ -1,17 +1,10 @@
 // Single source of truth for every model parameter.
 //
-// Scenario-dependent parameters carry low / base / high values that map to the
-// Conservative / Base / Vendor-reported scenarios. Fixed parameters carry one
-// `value` and are editable in the Advanced drawer. `verify: true` renders a
-// "needs validation" badge wherever the parameter appears.
-
-export const SCENARIOS = [
-  { id: 'conservative', label: 'Conservative', key: 'low' },
-  { id: 'base', label: 'Base', key: 'base' },
-  { id: 'vendor', label: 'Vendor-reported', key: 'high' },
-];
-
-export const DEFAULT_SCENARIO = 'base';
+// Uncertain parameters carry a distribution that the Monte Carlo samples:
+//   normal:    { dist: 'normal', mean, sd, min, max }  (truncated to [min, max])
+//   lognormal: { dist: 'lognormal', median, sdLog }     (for odds ratios)
+// `anchor` says what the center is based on. Fixed parameters carry one
+// `value`. `verify: true` renders a "Needs validation" badge.
 
 export const SOURCES = {
   thakkar: {
@@ -58,58 +51,48 @@ export const SOURCES = {
 
 export const ASSUMPTIONS = {
   engagement: {
-    label: 'Engagement (share of enrolled who actively respond)',
-    unit: 'share',
+    label: 'Engagement (share of enrolled who respond)',
     format: 'percent0',
-    low: 0.5,
-    base: 0.7,
-    high: 0.8,
-    sources: ['vendor', 'author'],
-    note: 'Vendor site reports 77–88% response rates. Conservative and Base values are author assumptions.',
+    dist: 'normal', mean: 0.77, sd: 0.07, min: 0, max: 1,
+    anchor: 'Generated Health',
+    sources: ['vendor'],
+    note: 'Centered on the low end of the vendor-reported 77\u201388% response rate. SD 7 points.',
     verify: true,
   },
   adherenceOR: {
     label: 'Adherence odds ratio from SMS',
-    unit: 'odds ratio',
     format: 'odds',
-    low: 1.68,
-    base: 2.11,
-    high: 2.11,
+    dist: 'lognormal', median: 1.68, sdLog: 0.167,
+    anchor: 'Literature',
     sources: ['thakkar'],
-    note: 'Meta-analysis of 16 RCTs, n=2,742. OR 2.11 (95% CI 1.52–2.93); 1.68 after adjusting for publication bias.',
+    note: 'Centered on the publication-bias-adjusted OR 1.68. Spread from the 95% CI 1.52\u20132.93 (log SD 0.167). The unadjusted 2.11 sits near the 91st percentile.',
     verify: false,
   },
   realization: {
-    label: 'Realization of literature savings',
-    unit: 'share',
+    label: 'Share of literature savings realized',
     format: 'percent0',
-    low: 0.5,
-    base: 0.75,
-    high: 1.0,
+    dist: 'normal', mean: 0.75, sd: 0.15, min: 0.2, max: 1,
+    anchor: 'Assumption',
     sources: ['author'],
-    note: 'Haircut because Roebuck is observational and reported in 2011 dollars.',
+    note: 'Haircut because Roebuck is observational and in 2011 dollars.',
     verify: false,
   },
   tocCompletion: {
-    label: 'Transitions-of-care program completion',
-    unit: 'share',
+    label: 'Transitions-of-care completion',
     format: 'percent0',
-    low: 0.5,
-    base: 0.65,
-    high: 0.73,
-    sources: ['vendor', 'author'],
-    note: 'Vendor reports 73% post-discharge completion. Conservative and Base values are author assumptions.',
+    dist: 'normal', mean: 0.73, sd: 0.07, min: 0, max: 1,
+    anchor: 'Generated Health',
+    sources: ['vendor'],
+    note: 'Centered on the vendor-reported 73% post-discharge completion. SD 7 points.',
     verify: true,
   },
   readmitReduction: {
-    label: 'Relative reduction in 30-day readmissions among completers',
-    unit: 'share',
+    label: 'Readmission reduction among completers',
     format: 'percent0',
-    low: 0.1,
-    base: 0.15,
-    high: 0.29,
+    dist: 'normal', mean: 0.15, sd: 0.085, min: 0, max: 0.6,
+    anchor: 'Assumption',
     sources: ['vendor', 'author'],
-    note: '29% is vendor-reported (single hospital, n not disclosed). 10% and 15% are author placeholders.',
+    note: 'Vendor-reported 29% is one hospital, n not disclosed, no comparison group, so it is set at the 95th percentile rather than the center.',
     verify: true,
   },
   savingsHTN: {
@@ -215,16 +198,13 @@ export const ASSUMPTIONS = {
   },
 };
 
-export function isScenarioDependent(assumption) {
-  return assumption.value === undefined;
-}
+export const UNCERTAIN_IDS = Object.keys(ASSUMPTIONS).filter((id) => ASSUMPTIONS[id].dist);
 
-// Value of an assumption under a scenario id. Fixed assumptions ignore the scenario.
-export function scenarioValue(id, scenarioId) {
+// Central value of an assumption: the mean, the median for lognormal, else the fixed value.
+export function centralValue(id) {
   const a = ASSUMPTIONS[id];
   if (!a) throw new Error(`Unknown assumption: ${id}`);
-  if (!isScenarioDependent(a)) return a.value;
-  const scenario = SCENARIOS.find((s) => s.id === scenarioId);
-  if (!scenario) throw new Error(`Unknown scenario: ${scenarioId}`);
-  return a[scenario.key];
+  if (a.dist === 'normal') return a.mean;
+  if (a.dist === 'lognormal') return a.median;
+  return a.value;
 }

@@ -185,3 +185,78 @@ export function solveIncreasing(f, hi = 10, tol = 1e-4) {
   }
   return hi;
 }
+
+// ---------- Monte Carlo ----------
+
+// Seeded PRNG (mulberry32) so a shared link always shows the same distribution.
+export function rng(seed = 1) {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// Standard normal draw (Box-Muller).
+export function standardNormal(rand) {
+  let u = 0;
+  while (u === 0) u = rand();
+  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * rand());
+}
+
+// Draw from a parameter spec. Normal draws are truncated to [min, max] by
+// resampling, falling back to clamping after 50 tries.
+export function drawParam(spec, rand) {
+  if (spec.dist === 'lognormal') return nonNeg(spec.median) * Math.exp(nonNeg(spec.sdLog) * standardNormal(rand));
+  if (spec.dist === 'normal') {
+    const lo = spec.min ?? -Infinity;
+    const hi = spec.max ?? Infinity;
+    const sd = nonNeg(spec.sd);
+    for (let i = 0; i < 50; i++) {
+      const x = spec.mean + sd * standardNormal(rand);
+      if (x >= lo && x <= hi) return x;
+    }
+    return Math.min(hi, Math.max(lo, spec.mean));
+  }
+  return spec.value;
+}
+
+// Percentile of a sorted array (linear interpolation), q in [0, 1].
+export function percentile(sorted, q) {
+  if (!sorted.length) return null;
+  const i = (sorted.length - 1) * q;
+  const lo = Math.floor(i);
+  const hi = Math.ceil(i);
+  return sorted[lo] + (sorted[hi] - sorted[lo]) * (i - lo);
+}
+
+// Summary of a sample: percentiles, mean, share above zero, and histogram
+// bins whose edges include zero so gains and losses never share a bin.
+export function summarize(sample, bins = 28) {
+  const s = Float64Array.from(sample).sort();
+  const n = s.length;
+  if (!n) return null;
+  const p = (q) => percentile(s, q);
+  const lo = p(0.01);
+  const hi = p(0.99);
+  const raw = (hi - lo) / bins || Math.max(1, Math.abs(hi)) / bins;
+  const mag = 10 ** Math.floor(Math.log10(raw));
+  const width = [1, 2, 2.5, 5, 10].map((m) => m * mag).find((w) => w >= raw);
+  const start = Math.floor(lo / width) * width;
+  const count = Math.max(1, Math.ceil((hi - start) / width));
+  const hist = Array.from({ length: count }, (_, i) => ({ lo: start + i * width, hi: start + (i + 1) * width, n: 0 }));
+  for (const x of s) {
+    const i = Math.min(count - 1, Math.max(0, Math.floor((x - start) / width)));
+    hist[i].n += 1;
+  }
+  let above = 0;
+  let sum = 0;
+  for (const x of s) {
+    if (x > 0) above += 1;
+    sum += x;
+  }
+  return { n, p10: p(0.1), p50: p(0.5), p90: p(0.9), mean: sum / n, probPositive: above / n, hist: hist.map((b) => ({ ...b, share: b.n / n })) };
+}

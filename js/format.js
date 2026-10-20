@@ -18,8 +18,21 @@ export function fmt(value, format) {
     case 'percent0': return `${signed(int.format(value * 100))}%`;
     case 'percent1': return `${signed(one.format(value * 100))}%`;
     case 'multiple': return `${signed(one.format(value))}×`;
+    case 'currencyCompact': return compactCurrency(value);
     case 'odds': return value.toFixed(2);
     case 'prob3': return value.toFixed(3);
     default: return String(value);
   }
 }
+
+// $1.2M, -$350K, $900: for axis ticks and dense labels.
+function compactCurrency(v) {
+  const a = Math.abs(v);
+  const sign = v < 0 ? '\u2212' : '';
+  if (a >= 1e9) return `${sign}$${trim(a / 1e9)}B`;
+  if (a >= 1e6) return `${sign}$${trim(a / 1e6)}M`;
+  if (a >= 1e3) return `${sign}$${trim(a / 1e3)}K`;
+  return `${sign}$${Math.round(a)}`;
+}
+
+const trim = (x) => (x >= 100 ? x.toFixed(0) : x.toFixed(1).replace(/\.0$/, ''));
