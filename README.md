@@ -12,6 +12,14 @@ The five effect assumptions (engagement, adherence odds ratio, savings realized,
 
 > Independent prototype by Rob Martin. Not affiliated with or endorsed by Generated Health. Estimates are illustrative.
 
+## What if you build it yourself? (`build.html`)
+
+Linked from the estimator header and sized to the same ACO selection. It turns the Flo SMS cost model (AWS End User Messaging rates, 10DLC fees, monitoring, engineering and nurse hours) into four answers: the week the first text reaches a patient, year-1 cost, people needed, and shared savings revenue lost against a vendor.
+
+- **Build steps** (11 from the cost model, 3 added: clinical protocols, consent/opt-in, hospital discharge feed) can each be switched off. Skipping a step saves its time and cost but **blocks** or **weakens** specific programs.
+- **Programs** are based on what Generated Health describes for Florence: medication reminders (including COPD), home blood pressure readings, heart failure daily weight, COPD check-ins, and 30-day post-discharge follow-up. Volume = assigned beneficiaries (CMS) x prevalence x enrollment share x texts per patient.
+- Calendar weeks, dependencies, skip effects, and texts per patient are author assumptions; the cost model gives costs and hours only.
+
 ## What the public data can and cannot do
 
 - Lives under management are published **per ACO only**. CMS does not publish participant TINs or assignment by TIN; the participant file lists legal business names. TIN-level views need the ACO's own CMS assignment reports or claims line feed.
@@ -59,10 +67,16 @@ js/assumptions.js          single source of truth for every literature and autho
 js/model/core.js           pure functions: adherence and readmission model, MSSP settlement, sample size, seeded Monte Carlo
 js/model/aco.js            inputs, CMS-grounded defaults, pilot / scale / pass-through, simulation over one or many ACOs
 js/format.js               number formatting
-js/app.js                  UI and URL state
+js/app.js                  estimator UI and URL state
+js/ui.js                   shared tags, tooltips, cards
+js/build/data.js           build steps (from the cost model), programs, AWS rates
+js/model/build.js          build schedule, volume, cost, skip effects, value at stake
+js/build-app.js            build page UI
+build.html                 "What if you build it yourself?" page
 js/config.js               author name, roadmap link
 scripts/build-aco-data.js  CMS CSV to JSON
 tests/model.test.js
+tests/build.test.js
 docs/ROADMAP.md
 docs/ASSUMPTIONS.md
 ```

@@ -4,6 +4,8 @@ Built: core adherence and transitions-of-care model, and the **Medicare ACO (MSS
 
 ## 0. Next for the ACO dashboard
 
+- **Build page calibration.** Replace assumed calendar weeks and texts per patient with real 10DLC approval times, ADT interface lead times, and Flo protocol cadences.
+
 - **ACO's own data upload (TIN level).** CMS publishes no TINs and no assignment by TIN. Let an ACO drop in its Assignment Summary or CCLF-derived counts (assigned beneficiaries by TIN, registry counts of unique patients with hypertension, diabetes, heart failure) in the browser, never uploaded to a server. This replaces national prevalence and fixes multi-condition double counting.
 - **Unique-patient cohort.** Count each patient once with a condition mix, and charge PMPM once per patient.
 - **Full MSSP reconciliation.** Performance payment and loss caps, MLR choice, prior savings adjustment, regional adjustment, and benchmark rebasing across the agreement period. **Verify against the current year's CMS documentation.**
