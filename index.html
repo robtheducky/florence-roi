@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>SMS Care Program ROI Estimator</title>
-  <meta name="description" content="Independent prototype estimating the financial impact of automated two-way SMS for chronic care and transitions of care.">
+  <title>ACO Pilot Estimator</title>
+  <meta name="description" content="Independent prototype: Medicare ACO baseline from CMS Shared Savings Program data, a pilot bet for two-way SMS care, and what the ACO keeps at scale.">
   <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
@@ -13,53 +13,85 @@
       <div class="title-row">
         <div>
           <p class="eyebrow">Independent prototype</p>
-          <h1>Two-way SMS care program: ROI estimator</h1>
-          <p class="subtitle">Medication adherence and transitions of care. Every figure links to a cited source or is labeled as an assumption.</p>
+          <h1>Two-way SMS care for Medicare ACOs: pilot and scale estimator</h1>
+          <p class="subtitle">Grounded in CMS Shared Savings Program data where it exists. Everything else is a labeled assumption you can change.</p>
         </div>
         <div class="header-actions no-print">
           <button type="button" class="btn" id="copy-link">Copy link</button>
           <button type="button" class="btn" id="print">Print</button>
-          <button type="button" class="btn btn-quiet" id="reset">Reset to defaults</button>
+          <button type="button" class="btn btn-quiet" id="reset">Reset</button>
         </div>
       </div>
-      <nav class="tabs no-print" id="tabs" aria-label="Buyer modules"></nav>
-      <p class="print-only print-meta" id="print-meta"></p>
+      <div class="picker no-print">
+        <label for="aco-search" class="picker-label">Find a Shared Savings Program ACO</label>
+        <div class="picker-row">
+          <input id="aco-search" type="search" list="aco-list" autocomplete="off" placeholder="Search by ACO name, ID, or state">
+          <datalist id="aco-list"></datalist>
+          <button type="button" class="btn btn-quiet" id="aco-clear">Use MSSP medians</button>
+        </div>
+      </div>
+      <p class="print-meta" id="print-meta"></p>
     </div>
   </header>
 
-  <main class="wrap layout">
-    <aside class="inputs-panel" aria-labelledby="inputs-heading">
-      <h2 id="inputs-heading" class="panel-title">Inputs</h2>
-      <form id="inputs" novalidate></form>
-    </aside>
-
-    <section class="results" aria-labelledby="results-heading" aria-live="polite">
-      <div class="results-top">
-        <h2 id="results-heading" class="panel-title">Results</h2>
-        <fieldset class="scenario no-print" id="scenario">
-          <legend class="sr-only">Scenario</legend>
-        </fieldset>
+  <main class="wrap">
+    <section class="observed" aria-labelledby="observed-heading">
+      <div class="section-head">
+        <h2 id="observed-heading">What CMS data shows</h2>
+        <p class="section-sub" id="observed-sub"></p>
       </div>
-      <p class="print-only" id="print-scenario"></p>
-      <div id="headline" class="headline"></div>
-      <div id="comparison" class="card comparison"></div>
-      <div id="print-inputs" class="print-only print-inputs"></div>
-      <div class="card breakdown-card">
-        <h3 class="card-title">Breakdown</h3>
-        <table class="breakdown" id="breakdown"></table>
-      </div>
-      <ul class="caveats" id="caveats"></ul>
-      <details class="card math no-print" id="math-details">
-        <summary>Show the math</summary>
-        <div id="math"></div>
+      <div id="observed-notice"></div>
+      <div class="tiles" id="tiles"></div>
+      <details class="card participants no-print" id="participants">
+        <summary id="participants-summary">Participants</summary>
+        <div id="participants-body"></div>
       </details>
-      <div class="card assumptions-card">
-        <h3 class="card-title">Assumptions &amp; sources</h3>
-        <div class="table-scroll">
-          <table class="assumptions" id="assumptions"></table>
-        </div>
-      </div>
     </section>
+
+    <div class="layout">
+      <aside class="inputs-panel no-print" aria-labelledby="inputs-heading">
+        <h2 id="inputs-heading" class="panel-title">Inputs</h2>
+        <form id="inputs" novalidate></form>
+      </aside>
+
+      <section class="bet" aria-labelledby="bet-heading" aria-live="polite">
+        <div class="section-head bet-head">
+          <h2 id="bet-heading">The bet</h2>
+          <fieldset class="scenario no-print" id="scenario"></fieldset>
+          <p class="print-only" id="print-scenario"></p>
+        </div>
+
+        <div class="card pilot-card">
+          <h3 class="card-title" id="pilot-title">Pilot</h3>
+          <div class="stats" id="pilot-stats"></div>
+          <table class="scorecard" id="scorecard"></table>
+          <p class="callout" id="pilot-callout"></p>
+        </div>
+
+        <div class="card scale-card">
+          <h3 class="card-title">At scale: what the ACO keeps</h3>
+          <div class="stats" id="scale-stats"></div>
+          <p class="callout callout-accent" id="breakeven"></p>
+          <p class="callout" id="msr-note"></p>
+          <div id="comparison" class="comparison"></div>
+          <table class="breakdown" id="breakdown"></table>
+        </div>
+
+        <ul class="caveats" id="caveats"></ul>
+
+        <details class="card math no-print">
+          <summary>Show the math</summary>
+          <div id="math"></div>
+        </details>
+
+        <div class="card no-print">
+          <h3 class="card-title">Assumptions &amp; sources</h3>
+          <div class="table-scroll"><table class="assumptions" id="assumptions"></table></div>
+          <h3 class="card-title provenance-title">CMS data provenance</h3>
+          <div class="table-scroll"><table class="assumptions" id="provenance"></table></div>
+        </div>
+      </section>
+    </div>
   </main>
 
   <footer class="site-footer">
