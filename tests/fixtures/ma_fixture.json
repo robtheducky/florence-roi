@@ -1,0 +1,18 @@
+{
+  "contracts": [
+    { "id": "H0001", "overall": 3.5, "enrollment": 100000, "measures": {
+      "dm": { "rate": 89, "stars": 3, "nextCut": 91, "curCut": 89, "gapUp": 2, "cushion": 0 },
+      "ras": { "rate": 85, "stars": 2, "nextCut": 88, "curCut": 84, "gapUp": 3, "cushion": 1 } } },
+    { "id": "H0002", "overall": 3.5, "enrollment": 50000, "measures": {
+      "dm": { "rate": 88, "stars": 2, "nextCut": 89, "curCut": 86, "gapUp": 1, "cushion": 2 } } },
+    { "id": "H0003", "overall": 4, "enrollment": 80000, "measures": {
+      "dm": { "rate": 93, "stars": 5, "nextCut": null, "curCut": 93, "gapUp": null, "cushion": 0 },
+      "ras": { "rate": 95, "stars": 5, "nextCut": null, "curCut": 93, "gapUp": null, "cushion": 2 } } },
+    { "id": "H0004", "overall": 4, "enrollment": 20000, "measures": {
+      "dm": { "rate": 96, "stars": 5, "nextCut": null, "curCut": 93, "gapUp": null, "cushion": 3 } } },
+    { "id": "H0005", "overall": 3, "enrollment": null, "measures": {
+      "dm": { "rate": null, "stars": null, "nextCut": null, "curCut": null, "gapUp": null, "cushion": null },
+      "ras": { "rate": 89, "stars": 3, "nextCut": 90, "curCut": 88, "gapUp": 1, "cushion": 1 } } },
+    { "id": "H0006", "overall": 4.5, "enrollment": 10000, "measures": {} }
+  ]
+}

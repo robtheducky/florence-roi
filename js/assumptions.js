@@ -222,3 +222,57 @@ export function centralValue(id) {
   if (a.dist === 'lognormal') return a.median;
   return a.value;
 }
+
+// ---------- MA Opportunity Finder ----------
+// Everything here is an author assumption. CMS files give rates, cut points,
+// stars, weights, and enrollment; they do not give measure denominators,
+// benchmarks, or bonus amounts per contract.
+
+export const MA_ASSUMPTIONS = {
+  benchmarkPMPM: {
+    label: 'MA benchmark, per member per month',
+    format: 'currency0',
+    value: 1200,
+    sources: ['author'],
+    note: 'Order-of-magnitude county benchmark. Real benchmarks vary by county and by the plan\u2019s service area; take them from the CMS ratebook.',
+    verify: true,
+  },
+  qbpPct: {
+    label: 'Quality bonus at 4 stars or more',
+    format: 'percent0',
+    value: 0.05,
+    sources: ['author'],
+    note: 'Bonus added to the benchmark for contracts rated 4 stars or higher (10% in some counties). Ignores rebate-percentage changes. Verify against the current rate announcement.',
+    verify: true,
+  },
+  shareDm: {
+    label: 'Members in the diabetes medication measure',
+    format: 'percent0', value: 0.25, sources: ['author'], verify: true,
+    note: 'Share of enrollment in the D08 denominator. True denominators are not public.',
+  },
+  shareRas: {
+    label: 'Members in the hypertension (RAS) medication measure',
+    format: 'percent0', value: 0.4, sources: ['author'], verify: true,
+    note: 'Share of enrollment in the D09 denominator. True denominators are not public.',
+  },
+  shareStatin: {
+    label: 'Members in the statin adherence measure',
+    format: 'percent0', value: 0.45, sources: ['author'], verify: true,
+    note: 'Share of enrollment in the D10 denominator. True denominators are not public.',
+  },
+  shareCbp: {
+    label: 'Members in Controlling Blood Pressure',
+    format: 'percent0', value: 0.5, sources: ['author'], verify: true,
+    note: 'Share of enrollment with a hypertension diagnosis in the HEDIS denominator. True denominators are not public.',
+  },
+  shareSpc: {
+    label: 'Members in Statin Therapy for Cardiovascular Disease',
+    format: 'percent0', value: 0.12, sources: ['author'], verify: true,
+    note: 'Share of enrollment in the C18 denominator. True denominators are not public.',
+  },
+  shareSupd: {
+    label: 'Members in Statin Use in Persons with Diabetes',
+    format: 'percent0', value: 0.2, sources: ['author'], verify: true,
+    note: 'Share of enrollment in the D11 denominator. True denominators are not public.',
+  },
+};
