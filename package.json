@@ -1,0 +1,11 @@
+{
+  "name": "florence-roi-estimator",
+  "private": true,
+  "description": "Independent ROI estimator prototype. No dependencies, no build step.",
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "serve": "python3 -m http.server 8000",
+    "docs": "node scripts/build-assumptions-doc.js"
+  }
+}
