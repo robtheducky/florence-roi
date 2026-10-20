@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Build It Yourself</title>
+  <meta name="description" content="Independent prototype: what it takes for a Medicare ACO to build its own two-way SMS care program on AWS, and what skipping steps does to the intervention.">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="wrap">
+      <div class="title-row">
+        <h1>What if you build it yourself?</h1>
+        <div class="header-actions no-print">
+          <a class="btn" id="back-link" href="index.html">Back to estimator</a>
+          <button type="button" class="btn" id="copy-link">Copy link</button>
+          <button type="button" class="btn" id="print">Print</button>
+          <button type="button" class="btn btn-quiet" id="reset">Reset</button>
+        </div>
+      </div>
+      <p class="for-line" id="for-line"></p>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section aria-label="Summary">
+      <div class="stats headline-stats" id="headline"></div>
+    </section>
+
+    <section aria-labelledby="iv-heading">
+      <div class="section-head">
+        <h2 id="iv-heading">What reaches patients</h2>
+        <span class="section-note">Turn programs on or off. Each card shows whether your build can still run it.</span>
+      </div>
+      <div class="iv-grid" id="interventions"></div>
+    </section>
+
+    <div class="build-layout">
+      <section class="card" aria-labelledby="steps-heading">
+        <h2 class="card-heading" id="steps-heading">Build steps</h2>
+        <div class="build-controls" id="controls"></div>
+        <ol class="steps" id="steps"></ol>
+      </section>
+
+      <div>
+        <section class="card" aria-labelledby="timeline-heading">
+          <h2 class="card-heading" id="timeline-heading">Weeks to first patient message</h2>
+          <div id="timeline"></div>
+        </section>
+        <section class="card" aria-labelledby="money-heading">
+          <h2 class="card-heading" id="money-heading">Where year-1 money goes</h2>
+          <div id="money"></div>
+          <h3 class="sub-heading no-print">Texting volume and AWS cost</h3>
+          <div class="table-scroll"><table class="data-table" id="volume"></table></div>
+        </section>
+      </div>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap" id="footer"></div>
+  </footer>
+
+  <script type="module" src="js/build-app.js"></script>
+</body>
+</html>
