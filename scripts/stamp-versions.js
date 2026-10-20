@@ -1,6 +1,6 @@
 // Cache-busting for GitHub Pages (which serves JS with max-age=600).
 // Writes an import map into each HTML page that points every module at
-// `?v=<content hash>`, and stamps the entry <script src>. A changed file gets a
+// `?v=<content hash>`, and stamps the entry <script src> and the stylesheet. A changed file gets a
 // new URL, so browsers and the CDN never mix old and new modules.
 // Usage: node scripts/stamp-versions.js   (run before committing JS changes;
 // tests/stamp.test.js fails if a page is out of date)
@@ -9,7 +9,7 @@ import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
 
 const ROOT = new URL('../', import.meta.url);
-const PAGES = ['index.html', 'build.html'];
+const PAGES = ['index.html', 'build.html', 'ma-opportunities.html'];
 
 function jsFiles(dir = 'js') {
   return readdirSync(new URL(dir, ROOT), { withFileTypes: true }).flatMap((e) =>
@@ -27,6 +27,7 @@ export function stampedPage(html) {
     ? html.replace(/<!-- importmap:start -->[\s\S]*?<!-- importmap:end -->/, map)
     : html.replace('</head>', `  ${map}\n</head>`);
   out = out.replace(/<script type="module" src="(js\/[^"?]+\.js)(\?v=[^"]*)?"><\/script>/g, (_, src) => `<script type="module" src="${src}?v=${hash(src)}"></script>`);
+  out = out.replace(/<link rel="stylesheet" href="(css\/[^"?]+\.css)(\?v=[^"]*)?">/g, (_, href) => `<link rel="stylesheet" href="${href}?v=${hash(href)}">`);
   return out;
 }
 

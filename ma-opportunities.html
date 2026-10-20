@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MA Opportunity Finder</title>
+  <meta name="description" content="Independent prototype: Medicare Advantage contracts near a Star Ratings cut point on medication adherence and blood pressure measures, from CMS data.">
+  <link rel="stylesheet" href="css/styles.css?v=83188298b7">
+  <!-- importmap:start -->
+  <script type="importmap">{"imports":{"./js/app.js":"./js/app.js?v=911d24ecea","./js/assumptions.js":"./js/assumptions.js?v=b033c7666d","./js/build-app.js":"./js/build-app.js?v=8d64bc473d","./js/build/data.js":"./js/build/data.js?v=248e784724","./js/config.js":"./js/config.js?v=367bc76bf3","./js/format.js":"./js/format.js?v=701208fddc","./js/ma-app.js":"./js/ma-app.js?v=30b5712079","./js/model/aco.js":"./js/model/aco.js?v=b3774c4586","./js/model/build.js":"./js/model/build.js?v=5fd7043275","./js/model/core.js":"./js/model/core.js?v=ad81c749cf","./js/model/ma.js":"./js/model/ma.js?v=8c60b2749e","./js/model/study.js":"./js/model/study.js?v=44b2100e52","./js/ui.js":"./js/ui.js?v=808a59d521"}}</script>
+  <!-- importmap:end -->
+</head>
+<body>
+  <header class="site-header">
+    <div class="wrap">
+      <div class="title-row">
+        <h1>MA plans near a Star cut point</h1>
+        <div class="header-actions no-print">
+          <a class="btn" href="index.html">Back to estimator</a>
+          <button type="button" class="btn" id="export">Export CSV</button>
+          <button type="button" class="btn" id="copy-link">Copy link</button>
+          <button type="button" class="btn" id="print">Print</button>
+        </div>
+      </div>
+      <p class="for-line" id="strip"></p>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="stats tier-stats" id="tiers" aria-label="Contracts by tier"></section>
+
+    <section class="card controls-card no-print" aria-label="Filters">
+      <div class="ma-controls" id="controls"></div>
+    </section>
+
+    <section class="card detail-card" id="detail" hidden aria-live="polite"></section>
+
+    <section class="card" aria-labelledby="table-heading">
+      <div class="table-head">
+        <h2 class="card-heading" id="table-heading">Contracts</h2>
+        <span class="muted" id="count"></span>
+      </div>
+      <div class="table-scroll ma-scroll"><table class="data-table ma-table" id="table"></table></div>
+    </section>
+
+    <details class="card how no-print">
+      <summary>Assumptions</summary>
+      <div class="ma-assumptions" id="assumptions"></div>
+    </details>
+
+    <details class="card how">
+      <summary>Methodology and caveats</summary>
+      <div id="method"></div>
+    </details>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap" id="footer"></div>
+  </footer>
+
+  <script type="module" src="js/ma-app.js?v=30b5712079"></script>
+</body>
+</html>
