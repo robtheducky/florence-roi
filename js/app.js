@@ -197,6 +197,20 @@ function tile(label, value, sub, column) {
     <div class="tile-value">${value}</div>${sub ? `<div class="tile-sub">${sub}</div>` : ''}</div>`;
 }
 
+function dualTile(acos) {
+  const m = state.data.medians;
+  const gap = state.data.meta.lisGap;
+  const withRes = acos.filter((a) => a.hasResults);
+  const py = withRes.reduce((t, a) => t + (a.dualPersonYears ?? 0), 0);
+  const share = withRes.length ? weighted(withRes, (a) => a.dualShare, (a) => a.lum) : m.dualShare;
+  const sd = withRes.length ? weighted(withRes, (a) => a.spendDual, (a) => a.dualPersonYears) : m.spendDual;
+  const snd = withRes.length ? weighted(withRes, (a) => a.spendNonDual, (a) => a.lum) : m.spendNonDual;
+  return `<div class="tile">
+    <div class="tile-head"><span class="tile-label">Dual-eligible beneficiaries</span>${info(`<strong>Source:</strong> ${esc(state.data.meta.sources.results.short)}<br><code>N_AB_Year_Dual_PY; Per_Capita_Exp_ALL_AGDU_PY vs AGND_PY</code><br>Spending compares aged duals with aged non-duals.<br><strong>Adherence gap:</strong> duals and low-income members are ${esc(fmt(-gap.ras, 'percent1'))} points lower on blood pressure meds and ${esc(fmt(-gap.dm, 'percent1'))} on diabetes meds within the same drug plan (<a href="${esc(gap.url)}" target="_blank" rel="noopener">CMS CAI supplement</a>).`, 'Source for duals')}</div>
+    <div class="tile-value">${withRes.length ? `${esc(fmt(py, 'number0'))} <span class="tile-of">(${esc(fmt(share, 'percent1'))})</span>` : `${esc(fmt(share, 'percent1'))} <span class="tile-of">median ACO</span>`}</div>
+    <div class="tile-sub">${esc(fmt(sd, 'currencyCompact'))} vs ${esc(fmt(snd, 'currencyCompact'))} spending per person (${esc(fmt(sd / snd, 'number1'))}\u00d7)</div></div>`;
+}
+
 function partDTile(ras, dm, sub) {
   const src = state.data.meta.sources.stars;
   return `<div class="tile">
@@ -234,6 +248,7 @@ function renderObserved() {
       tile('Cost per admission', fmt(weighted(withRes, (a) => a.costPerAdmit, admits), 'currency0'), vsMedian('costPerAdmit', 'currency0'), 'CapAnn_INP_S_trm ÷ ADM_S_Trm'),
       tile('Quality score', fmt(weighted(withRes, (a) => a.qualityScore, (a) => a.lum), 'number1'), `Weighted by beneficiaries. ${vsMedian('qualityScore', 'number1')}`, 'QualScore'),
       partDTile(weighted(withRes, (a) => a.partD?.ras, (a) => a.lum), weighted(withRes, (a) => a.partD?.dm, (a) => a.lum), 'Weighted by beneficiaries'),
+      dualTile(withRes),
     ];
   } else {
     const a = withRes[0] ?? null;
@@ -254,6 +269,7 @@ function renderObserved() {
       tile('Cost per admission', fmt(v('costPerAdmit'), 'currency0'), a ? vsMedian('costPerAdmit', 'currency0') : '', 'CapAnn_INP_S_trm ÷ ADM_S_Trm'),
       tile('Quality score', fmt(v('qualityScore'), 'number1'), a ? vsMedian('qualityScore', 'number1') : '', 'QualScore'),
       partDTile((named?.partD ?? m.partD).ras, (named?.partD ?? m.partD).dm, !named ? 'National, standalone drug plans' : named.partD?.basis === 'states' ? 'Drug plans in its states' : 'Drug plans in its counties'),
+      dualTile(a ? [a] : []),
     ];
   }
   $('observed-notice').innerHTML = notice;

@@ -281,6 +281,10 @@ const acos = results.map((r) => {
     controllingBP: quality(r, 'QualityID_236'),
     hba1cPoor: quality(r, 'QualityID_001'),
     percDual: num(r.Perc_Dual),
+    dualPersonYears: num(r.N_AB_Year_Dual_PY),
+    dualShare: num(r.N_AB_Year_PY) ? +(num(r.N_AB_Year_Dual_PY) / num(r.N_AB_Year_PY)).toFixed(4) : null,
+    spendDual: num(r.Per_Capita_Exp_ALL_AGDU_PY),
+    spendNonDual: num(r.Per_Capita_Exp_ALL_AGND_PY),
     nPCP: num(r.N_PCP),
     nSpec: num(r.N_Spec),
     nNPPA: (num(r.N_NP) ?? 0) + (num(r.N_PA) ?? 0),
@@ -309,14 +313,28 @@ acos.sort((a, b) => a.name.localeCompare(b.name));
 
 const withData = acos.filter((a) => a.hasResults);
 const medians = Object.fromEntries(
-  ['lum', 'benchmarkPC', 'expenditurePC', 'savingsRate', 'msr', 'shareRate', 'lossRate', 'qualityScore', 'stAdmitsPer1000', 'costPerAdmit', 'edPer1000', 'readmitRate', 'percDual'].map(
+  ['lum', 'benchmarkPC', 'expenditurePC', 'savingsRate', 'msr', 'shareRate', 'lossRate', 'qualityScore', 'stAdmitsPer1000', 'costPerAdmit', 'edPer1000', 'readmitRate', 'percDual', 'dualShare', 'spendDual', 'spendNonDual'].map(
     (k) => [k, median(withData.map((a) => a[k]))],
   ),
 );
 medians.partD = { ...round(nationalRate), basis: 'national' };
 
+// Within-plan adherence gap for low-income subsidy / dual-eligible (LIS/DE)
+// members vs. others, median across standalone drug plans. CMS publishes it
+// only in a PDF: 2027 Categorical Adjustment Index Measure Supplement, Table 3.
+const LIS_GAP = {
+  dm: -0.01109,
+  ras: -0.02976,
+  statin: -0.00657,
+  source: '2027 Categorical Adjustment Index Measure Supplement, Table 3 (PDP medians)',
+  url: 'https://www.cms.gov/files/document/2027-categorical-adjustment-index-measure-supplement.pdf',
+};
+
+medians.lisGap = { dm: LIS_GAP.dm, ras: LIS_GAP.ras, statin: LIS_GAP.statin };
+
 const meta = {
   built: new Date().toISOString().slice(0, 10),
+  lisGap: LIS_GAP,
   sources: Object.fromEntries(Object.entries(SOURCES).map(([k, s]) => [k, { name: s.name, short: s.short, released: s.released, page: s.page, url: s.url }])),
   counts: { withResults: withData.length, active2026: acos.filter((a) => a.active2026).length, newSincePY: acos.length - withData.length },
 };

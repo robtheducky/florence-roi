@@ -71,8 +71,8 @@ export const INPUTS = [
 
   {
     id: 'targeting', group: 'pilot', label: 'Medication texts go to', kind: 'choice', default: 'all',
-    options: [['all', 'Everyone with the condition'], ['gap', 'Only patients below 80% PDC last year']],
-    tip: 'Everyone: starts from CMS adherence (about 89%), so the gap is small. Only non-adherent: a smaller pool (1 minus CMS adherence) with a much larger gap; ACOs can find them in Part D claims in their CCLF files.',
+    options: [['all', 'Everyone with the condition'], ['gap', 'Only patients below 80% PDC last year'], ['duals', 'Only dual-eligible patients']],
+    tip: 'Everyone: starts from CMS adherence (about 89%), so the gap is small. Only non-adherent: a smaller pool (1 minus CMS adherence) with a much larger gap; ACOs can find them in Part D claims in their CCLF files. Only duals: the ACO\u2019s dual-eligible share (CMS), adherence lowered by the CMS-published dual/low-income gap, and savings scaled by dual vs. non-dual spending (CMS).',
   },
   { id: 'pilotMonths', group: 'pilot', label: 'Length', kind: 'count', suffix: 'months', default: 6, max: 24 },
   { id: 'pilotHTN', group: 'pilot', label: 'Patients with hypertension', kind: 'count', default: 500 },
@@ -140,9 +140,23 @@ export function acoDefaults(aco, medians) {
 }
 
 // One settlement unit per ACO: rates as 0-1, dollars as dollars.
-function unitFromValues(values) {
+// Dual-eligible share, spending ratio, and adherence gap from the ACO's CMS row
+// (or MSSP medians). These are not editable inputs.
+function dualFields(a, medians) {
+  const share = a?.dualShare ?? medians.dualShare ?? 0;
+  const dual = a?.spendDual ?? medians.spendDual;
+  const nonDual = a?.spendNonDual ?? medians.spendNonDual;
+  return {
+    dualShare: share,
+    dualCostRatio: dual && nonDual ? dual / nonDual : 1,
+    dualAdherenceGap: medians.lisGap ? blendPartD(medians.lisGap) : 0,
+  };
+}
+
+function unitFromValues(values, medians = {}, aco = null) {
   const n = (id) => nonNeg(values[id]);
   return {
+    ...dualFields(aco, medians),
     id: null,
     lum: n('lum'),
     admitsPer1000: n('admitsPer1000'),
@@ -159,6 +173,7 @@ function unitFromValues(values) {
 
 function unitFromAco(a, medians) {
   return {
+    ...dualFields(a, medians),
     id: a.id,
     lum: a.lum ?? 0,
     admitsPer1000: a.stAdmitsPer1000 ?? medians.stAdmitsPer1000,
@@ -175,7 +190,7 @@ function unitFromAco(a, medians) {
 
 export function settlementUnits(values, acos = [], medians = {}) {
   const withResults = acos.filter((a) => a.hasResults);
-  return withResults.length >= 2 ? withResults.map((a) => unitFromAco(a, medians)) : [unitFromValues(values)];
+  return withResults.length >= 2 ? withResults.map((a) => unitFromAco(a, medians)) : [unitFromValues(values, medians, withResults[0] ?? null)];
 }
 
 // Distribution specs for the uncertain parameters, from the inputs.
@@ -214,10 +229,19 @@ function run(effect, units, values, detail) {
   }
   // Targeting non-adherent patients swaps the CMS baseline for last year's
   // non-adherent and shrinks the eligible pool to (1 - CMS adherence).
+  // Dual-only texting uses the ACO's dual share, CMS dual adherence gap, and
+  // scales savings by dual vs. non-dual spending.
   const targeted = values.targeting === 'gap';
+  const duals = values.targeting === 'duals';
   const lumAll = units.reduce((t, u) => t + u.lum, 0);
-  const popAdherence = lumAll > 0 ? units.reduce((t, u) => t + u.lum * u.adherence, 0) / lumAll : units[0].adherence;
-  const p0For = (u) => (targeted ? pct('targetedAdherence') : u.adherence);
+  const lumWeighted = (f) => (lumAll > 0 ? units.reduce((t, u) => t + u.lum * f(u), 0) / lumAll : f(units[0]));
+  const p0For = (u) => (targeted ? pct('targetedAdherence') : duals ? Math.max(0, u.adherence + u.dualAdherenceGap) : u.adherence);
+  const poolFor = (u) => (targeted ? 1 - u.adherence : duals ? u.dualShare : 1);
+  const savingsFor = (u) => {
+    const k = duals ? u.dualCostRatio : 1;
+    return { htn: n('savingsHTN') * k, dm: n('savingsDM') * k, hf: n('savingsCHF') * k };
+  };
+  const pilotP0 = lumWeighted(p0For);
   const pilotReadmit = admits > 0 ? wReadmit / admits : units[0].readmit;
   const pilotCost = admits > 0 ? wCost / admits : units[0].costPerAdmit;
   const months = Math.min(24, n('pilotMonths'));
@@ -225,13 +249,13 @@ function run(effect, units, values, detail) {
   const pa = estimate(
     {
       enrolled: { htn: n('pilotHTN'), dm: n('pilotDM'), hf: n('pilotHF') },
-      baselineAdherence: targeted ? pct('targetedAdherence') : popAdherence,
+      baselineAdherence: pilotP0,
       discharges: n('pilotDischarges'),
       baselineReadmitRate: pilotReadmit,
       pmpm: n('pmpm'),
       episodeFee: n('episodeFee'),
     },
-    { ...params, readmitCost: pilotCost },
+    { ...params, savingsPerAdherent: savingsFor({ dualCostRatio: lumWeighted((u) => u.dualCostRatio) }), readmitCost: pilotCost },
   );
   // Chronic care savings and fees accrue monthly; TOC savings land within 30 days.
   const pilot = {
@@ -250,7 +274,7 @@ function run(effect, units, values, detail) {
   // Scale: every ACO settles with CMS on its own benchmark.
   const scale = { enrolled: 0, enrolledByCondition: { htn: 0, dm: 0, hf: 0 }, discharges: 0, newlyAdherent: 0, readmitsAvoided: 0, adherenceSavings: 0, readmitSavings: 0, gross: 0, cost: 0, acoShare: 0, benchmark: 0, perAco: [] };
   for (const u of units) {
-    const share = pct('scaleEnroll') * (targeted ? 1 - u.adherence : 1);
+    const share = pct('scaleEnroll') * poolFor(u);
     const r = estimate(
       {
         enrolled: { htn: u.lum * pct('prevHTN') * share, dm: u.lum * pct('prevDM') * share, hf: u.lum * pct('prevHF') * share },
@@ -260,7 +284,7 @@ function run(effect, units, values, detail) {
         pmpm: n('pmpm'),
         episodeFee: n('episodeFee'),
       },
-      { ...params, readmitCost: u.costPerAdmit },
+      { ...params, savingsPerAdherent: savingsFor(u), readmitCost: u.costPerAdmit },
     );
     const terms = { benchmark: u.benchmark, msr: u.msr, shareRate: u.shareRate, lossRate: u.lossRate };
     const acoShare = msspIncremental(u.benchmark * u.savingsRate, r.gross, terms);

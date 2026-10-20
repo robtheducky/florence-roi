@@ -237,3 +237,14 @@ test('targeting non-adherent patients shrinks the pool and widens the gap', () =
   assert.ok(gap.pilotAnnual.p0 < all.pilotAnnual.p0);
   assert.ok(gap.scale.cost < all.scale.cost);
 });
+
+test('dual-only texting uses the ACO dual share, lower adherence, and higher spending', () => {
+  const a = data.acos.find((x) => x.id === 'A1001');
+  const v = acoDefaults(a, data.medians).values;
+  const all = compute(v, [a], med).result;
+  const duals = compute({ ...v, targeting: 'duals' }, [a], med).result;
+  near(duals.scale.enrolled, all.scale.enrolled * a.dualShare, 1);
+  assert.ok(duals.pilotAnnual.p0 < all.pilotAnnual.p0);
+  const perAdherent = (r) => r.scale.adherenceSavings / r.scale.newlyAdherent;
+  near(perAdherent(duals) / perAdherent(all), a.spendDual / a.spendNonDual, 0.02);
+});
