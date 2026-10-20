@@ -4,18 +4,14 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>ACO Pilot Estimator</title>
-  <meta name="description" content="Independent prototype: Medicare ACO baseline from CMS Shared Savings Program data, a pilot bet for two-way SMS care, and what the ACO keeps at scale.">
+  <meta name="description" content="Independent prototype: Medicare ACO baseline from CMS data, a pilot plan for two-way SMS care, and the range of outcomes at scale.">
   <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
   <header class="site-header">
     <div class="wrap">
       <div class="title-row">
-        <div>
-          <p class="eyebrow">Independent prototype</p>
-          <h1>Two-way SMS care for Medicare ACOs: pilot and scale estimator</h1>
-          <p class="subtitle">Grounded in CMS Shared Savings Program data where it exists. Everything else is a labeled assumption you can change.</p>
-        </div>
+        <h1>SMS care program estimator for Medicare ACOs</h1>
         <div class="header-actions no-print">
           <button type="button" class="btn" id="copy-link">Copy link</button>
           <button type="button" class="btn" id="print">Print</button>
@@ -23,74 +19,65 @@
         </div>
       </div>
       <div class="picker no-print">
-        <label for="aco-search" class="picker-label">Find a Shared Savings Program ACO</label>
-        <div class="picker-row">
-          <input id="aco-search" type="search" list="aco-list" autocomplete="off" placeholder="Search by ACO name, ID, or state">
-          <datalist id="aco-list"></datalist>
-          <button type="button" class="btn btn-quiet" id="aco-clear">Use MSSP medians</button>
+        <label for="aco-search" class="picker-label">ACOs</label>
+        <div class="combo" id="combo">
+          <input id="aco-search" type="text" role="combobox" aria-expanded="false" aria-controls="aco-options" aria-autocomplete="list" autocomplete="off" placeholder="Type an ACO name, ID, or state">
+          <ul id="aco-options" class="combo-list" role="listbox" aria-multiselectable="true" hidden></ul>
         </div>
+        <div class="chips" id="chips"></div>
       </div>
       <p class="print-meta" id="print-meta"></p>
     </div>
   </header>
 
   <main class="wrap">
-    <section class="observed" aria-labelledby="observed-heading">
+    <section aria-labelledby="observed-heading">
       <div class="section-head">
-        <h2 id="observed-heading">What CMS data shows</h2>
-        <p class="section-sub" id="observed-sub"></p>
+        <h2 id="observed-heading">CMS data</h2>
+        <span id="observed-source"></span>
       </div>
       <div id="observed-notice"></div>
       <div class="tiles" id="tiles"></div>
-      <details class="card participants no-print" id="participants">
-        <summary id="participants-summary">Participants</summary>
-        <div id="participants-body"></div>
+      <details class="card aco-table-card no-print" id="aco-table-card" hidden>
+        <summary id="aco-table-summary"></summary>
+        <div class="table-scroll"><table class="data-table" id="aco-table"></table></div>
       </details>
     </section>
 
     <div class="layout">
-      <aside class="inputs-panel no-print" aria-labelledby="inputs-heading">
-        <h2 id="inputs-heading" class="panel-title">Inputs</h2>
+      <aside class="inputs-panel no-print" aria-label="Inputs">
         <form id="inputs" novalidate></form>
       </aside>
 
-      <section class="bet" aria-labelledby="bet-heading" aria-live="polite">
-        <div class="section-head bet-head">
-          <h2 id="bet-heading">The bet</h2>
-          <fieldset class="scenario no-print" id="scenario"></fieldset>
-          <p class="print-only" id="print-scenario"></p>
-        </div>
-
-        <div class="card pilot-card">
-          <h3 class="card-title" id="pilot-title">Pilot</h3>
+      <div class="bet" aria-live="polite">
+        <section class="card" aria-labelledby="pilot-heading">
+          <h2 class="card-heading" id="pilot-heading">Pilot</h2>
           <div class="stats" id="pilot-stats"></div>
-          <table class="scorecard" id="scorecard"></table>
-          <p class="callout" id="pilot-callout"></p>
-        </div>
+          <h3 class="sub-heading">What the pilot can prove</h3>
+          <div class="table-scroll"><table class="data-table scorecard" id="scorecard"></table></div>
+        </section>
 
-        <div class="card scale-card">
-          <h3 class="card-title">At scale: what the ACO keeps</h3>
+        <section class="card" aria-labelledby="scale-heading">
+          <h2 class="card-heading" id="scale-heading">At scale, per year</h2>
+          <div class="dist-row">
+            <figure class="dist" id="dist"></figure>
+            <div class="dist-side" id="dist-side"></div>
+          </div>
           <div class="stats" id="scale-stats"></div>
-          <p class="callout callout-accent" id="breakeven"></p>
-          <p class="callout" id="msr-note"></p>
-          <div id="comparison" class="comparison"></div>
-          <table class="breakdown" id="breakdown"></table>
-        </div>
+        </section>
 
-        <ul class="caveats" id="caveats"></ul>
-
-        <details class="card math no-print">
-          <summary>Show the math</summary>
+        <details class="card how no-print">
+          <summary>How this is calculated</summary>
+          <h3 class="sub-heading">Math (central case)</h3>
           <div id="math"></div>
+          <h3 class="sub-heading">Assumptions</h3>
+          <div class="table-scroll"><table class="data-table assumptions" id="assumptions"></table></div>
+          <h3 class="sub-heading">CMS data used</h3>
+          <div class="table-scroll"><table class="data-table assumptions" id="provenance"></table></div>
+          <h3 class="sub-heading">Limits</h3>
+          <ul class="limits" id="caveats"></ul>
         </details>
-
-        <div class="card no-print">
-          <h3 class="card-title">Assumptions &amp; sources</h3>
-          <div class="table-scroll"><table class="assumptions" id="assumptions"></table></div>
-          <h3 class="card-title provenance-title">CMS data provenance</h3>
-          <div class="table-scroll"><table class="assumptions" id="provenance"></table></div>
-        </div>
-      </section>
+      </div>
     </div>
   </main>
 

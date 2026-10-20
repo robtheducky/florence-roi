@@ -1,7 +1,7 @@
-// Single-screen ACO dashboard: CMS baseline, pilot bet, and scale projection.
+// Single-screen ACO dashboard: CMS baseline, pilot, and distribution at scale.
 
-import { ASSUMPTIONS, SCENARIOS, SOURCES, DEFAULT_SCENARIO, isScenarioDependent } from './assumptions.js';
-import { INPUTS, GROUPS, ASSUMPTION_IDS, acoDefaults, compute } from './model/aco.js';
+import { ASSUMPTIONS, SOURCES } from './assumptions.js';
+import { INPUTS, GROUPS, ASSUMPTION_IDS, DRAWS, acoDefaults, compute } from './model/aco.js';
 import { fmt } from './format.js';
 import { AUTHOR, ROADMAP_URL } from './config.js';
 
@@ -9,9 +9,65 @@ const $ = (id) => document.getElementById(id);
 const esc = (s) =>
   String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
-const KIND_FORMAT = { count: 'number0', percent: 'percent1', currency: 'currency0' };
+const BASELINE_IDS = new Set(INPUTS.filter((i) => i.group === 'aco').map((i) => i.id));
+const MAX_OPTIONS = 80;
 
-const state = { data: null, participants: null, aco: null, scenario: DEFAULT_SCENARIO, values: {}, defaults: {}, origin: {} };
+const state = {
+  data: null,
+  selected: [], // ACO ids, in selection order
+  values: {},
+  defaults: {},
+  origin: {},
+  query: '',
+  options: [], // rendered option rows
+  active: -1,
+};
+
+const acosById = () => new Map(state.data.acos.map((a) => [a.id, a]));
+const selectedAcos = () => {
+  const m = acosById();
+  return state.selected.map((id) => m.get(id)).filter(Boolean);
+};
+const isMulti = () => selectedAcos().filter((a) => a.hasResults).length >= 2;
+
+// ---------- small components ----------
+
+let tipSeq = 0;
+// An (i) button with a hover/focus tooltip. `html` is trusted markup built here.
+function info(html, label = 'Details') {
+  const id = `tip-${++tipSeq}`;
+  return `<span class="info"><button type="button" class="info-btn" aria-label="${esc(label)}" aria-describedby="${id}">i</button><span class="tip" role="tooltip" id="${id}">${html}</span></span>`;
+}
+
+const TAGS = {
+  cms: ['tag-cms', 'CMS data'],
+  estimate: ['tag-est', 'Estimate'],
+  assumption: ['tag-assume', 'Assumption'],
+  placeholder: ['tag-placeholder', 'Placeholder price'],
+  median: ['tag-assume', 'MSSP median'],
+  edited: ['tag-edited', 'Edited'],
+};
+const tag = (kind) => `<span class="tag ${TAGS[kind][0]}">${TAGS[kind][1]}</span>`;
+const verifyTag = () => '<span class="tag tag-verify">Needs validation</span>';
+
+function citation(sourceId) {
+  const s = SOURCES[sourceId];
+  return s.url
+    ? `<a class="cite" href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.short)}</a>`
+    : `<span class="cite">${esc(s.short)}</span>`;
+}
+
+function statCard({ label, value, sub = '', tags = [], tip = '', primary = false }) {
+  const neg = typeof value === 'number' && value < 0;
+  return `<div class="stat ${primary ? 'stat-primary' : ''} ${neg ? 'is-negative' : ''}">
+    <div class="stat-head"><span class="stat-label">${esc(label)}</span>${tip ? info(tip, `About ${label}`) : ''}</div>
+    <div class="stat-value">${typeof value === 'number' ? esc(fmt(value, 'currency0')) : value}</div>
+    ${sub ? `<div class="stat-sub">${sub}</div>` : ''}
+    <div class="stat-tags">${tags.map((t) => (t === 'verify' ? verifyTag() : tag(t))).join('')}</div>
+  </div>`;
+}
+
+const range = (d, f = 'currencyCompact') => `${esc(fmt(d.p10, f))} to ${esc(fmt(d.p90, f))} <span class="muted">(10th–90th percentile)</span>`;
 
 // ---------- data ----------
 
@@ -21,29 +77,23 @@ async function loadData() {
   state.data = await res.json();
 }
 
-async function loadParticipants() {
-  if (state.participants) return state.participants;
-  const res = await fetch('data/participants.json');
-  state.participants = res.ok ? await res.json() : {};
-  return state.participants;
-}
-
-const acoLabel = (a) => `${a.name} (${a.id}${a.state ? `, ${a.state}` : ''})`;
-
-function setAco(id) {
-  state.aco = state.data.acos.find((a) => a.id === id) ?? null;
-  const { values, origin } = acoDefaults(state.aco, state.data.medians);
+// Baseline inputs follow the selection; everything else keeps the user's edits.
+function applySelection(ids, { keepEdits = true } = {}) {
+  state.selected = [...new Set(ids)].filter((id) => acosById().has(id));
+  const single = state.selected.length === 1 ? acosById().get(state.selected[0]) : null;
+  const { values, origin } = acoDefaults(single, state.data.medians);
+  const prev = state.values;
   state.defaults = Object.fromEntries(Object.entries(values).map(([k, v]) => [k, String(v)]));
   state.origin = origin;
   state.values = { ...state.defaults };
+  if (keepEdits) for (const [k, v] of Object.entries(prev)) if (!BASELINE_IDS.has(k)) state.values[k] = v;
 }
 
 // ---------- URL ----------
 
 function readUrl() {
   const q = new URLSearchParams(location.search);
-  setAco(q.get('aco'));
-  state.scenario = SCENARIOS.some((s) => s.id === q.get('scenario')) ? q.get('scenario') : DEFAULT_SCENARIO;
+  applySelection((q.get('aco') ?? '').split(',').filter(Boolean), { keepEdits: false });
   for (const input of INPUTS) {
     const raw = q.get(input.id);
     if (raw !== null && raw.trim() !== '' && Number.isFinite(Number(raw))) state.values[input.id] = raw;
@@ -52,254 +102,428 @@ function readUrl() {
 
 function writeUrl() {
   const q = new URLSearchParams();
-  if (state.aco) q.set('aco', state.aco.id);
-  if (state.scenario !== DEFAULT_SCENARIO) q.set('scenario', state.scenario);
+  if (state.selected.length) q.set('aco', state.selected.join(','));
   for (const input of INPUTS) {
     const v = state.values[input.id];
     if (v !== '' && Number(v) !== Number(state.defaults[input.id])) q.set(input.id, v);
   }
-  const qs = q.toString();
+  const qs = q.toString().replace(/%2C/g, ',');
   history.replaceState(null, '', qs ? `?${qs}` : location.pathname);
 }
 
-// ---------- badges and citations ----------
+// ---------- ACO search (multi-select combobox) ----------
 
-const badge = (cls, text, title = '') => `<span class="badge ${cls}"${title ? ` title="${esc(title)}"` : ''}>${esc(text)}</span>`;
-const verifyBadge = () => badge('badge-verify', 'Needs validation', 'Keep the value, but validate before relying on it');
-const placeholderBadge = () => badge('badge-placeholder', 'Placeholder', 'Not vendor pricing');
+const norm = (s) => s.toLowerCase().normalize('NFKD').replace(/[^a-z0-9 ]+/g, ' ');
 
-function citation(sourceId) {
-  const s = SOURCES[sourceId];
-  return s.url
-    ? `<a class="cite" href="${esc(s.url)}" target="_blank" rel="noopener" title="${esc(s.full)}">${esc(s.short)}</a>`
-    : `<span class="cite cite-plain" title="${esc(s.full)}">${esc(s.short)}</span>`;
+// Tier 2: every typed word appears. Tier 1: letters appear in order (typos, gaps).
+function matchAcos(query) {
+  const q = norm(query).trim();
+  if (!q) return { tier: 0, list: state.data.acos };
+  const words = q.split(/\s+/);
+  const compact = q.replace(/\s+/g, '');
+  const contains = [];
+  const fuzzy = [];
+  for (const a of state.data.acos) {
+    const hay = norm(`${a.name} ${a.id} ${a.state ?? ''}`);
+    if (words.every((w) => hay.includes(w))) contains.push(a);
+    else if (compact.length >= 3 && isSubsequence(compact, hay.replace(/\s+/g, ''))) fuzzy.push(a);
+  }
+  return contains.length ? { tier: 2, list: contains } : { tier: 1, list: fuzzy };
 }
 
-function originBadge(input) {
-  const edited = Number(state.values[input.id]) !== Number(state.defaults[input.id]);
-  if (edited) return badge('badge-edited', 'Edited');
-  if (state.origin[input.id] === 'cms') return badge('badge-cms', `CMS PY2024 · ${input.column}`);
-  if (state.origin[input.id] === 'median') return badge('badge-median', 'MSSP median');
-  return '';
+function isSubsequence(needle, hay) {
+  let i = 0;
+  for (const ch of hay) if (ch === needle[i] && ++i === needle.length) return true;
+  return false;
 }
 
-function refChips(refs) {
-  return refs
-    .map((ref) => {
-      if (ref.startsWith('input:')) {
-        const input = INPUTS.find((i) => i.id === ref.slice(6));
-        const o = state.origin[input.id];
-        const src = o === 'cms' && Number(state.values[input.id]) === Number(state.defaults[input.id])
-          ? `CMS PY2024 PUF (${input.column})` : o === 'median' ? 'MSSP median' : 'Your input';
-        return `<span class="cite cite-plain">${esc(input.label)}: ${esc(src)}</span>`;
+function renderOptions() {
+  const list = $('aco-options');
+  const { tier, list: matches } = matchAcos(state.query);
+  const chosen = new Set(state.selected);
+  const rows = [];
+  if (state.query.trim().length >= 2 && matches.length >= 2) {
+    const all = matches.every((a) => chosen.has(a.id));
+    rows.push({ kind: 'all', ids: matches.map((a) => a.id), all, tier });
+  }
+  for (const a of matches.slice(0, MAX_OPTIONS)) rows.push({ kind: 'aco', aco: a });
+  state.options = rows;
+  if (state.active >= rows.length) state.active = rows.length - 1;
+
+  list.innerHTML = rows.length
+    ? rows.map((r, i) => {
+      const activeCls = i === state.active ? ' is-active' : '';
+      if (r.kind === 'all') {
+        const verb = r.all ? 'Remove all' : 'Select all';
+        const how = r.tier === 2 ? 'containing' : 'close to';
+        return `<li role="option" id="opt-${i}" class="combo-opt combo-all${activeCls}" aria-selected="${r.all}" data-i="${i}">
+          <span class="check" aria-hidden="true">${r.all ? '✓' : '+'}</span>${verb} ${r.ids.length} ACOs ${how} “${esc(state.query.trim())}”</li>`;
       }
-      if (SOURCES[ref]) return citation(ref);
-      const a = ASSUMPTIONS[ref];
-      return a.sources.map(citation).join(' ') + (a.verify ? ` ${verifyBadge()}` : '') + (a.placeholder ? ` ${placeholderBadge()}` : '');
-    })
-    .join(' ');
+      const a = r.aco;
+      const sel = chosen.has(a.id);
+      return `<li role="option" id="opt-${i}" class="combo-opt${activeCls}" aria-selected="${sel}" data-i="${i}">
+        <span class="check" aria-hidden="true">${sel ? '✓' : ''}</span>
+        <span class="opt-name">${esc(a.name)}</span>
+        <span class="opt-meta">${esc(a.id)}${a.state ? ` · ${esc(a.state)}` : ''}${a.hasResults ? '' : ' · no PY2024 results'}</span></li>`;
+    }).join('') + (matches.length > MAX_OPTIONS ? `<li class="combo-more" aria-hidden="true">${matches.length - MAX_OPTIONS} more. Keep typing to narrow.</li>` : '')
+    : '<li class="combo-more">No ACOs match.</li>';
+  $('aco-search').setAttribute('aria-activedescendant', state.active >= 0 ? `opt-${state.active}` : '');
+  list.querySelector('.is-active')?.scrollIntoView({ block: 'nearest' });
 }
 
-// ---------- picker ----------
-
-function renderPicker() {
-  $('aco-list').innerHTML = state.data.acos
-    .map((a) => `<option value="${esc(acoLabel(a))}">${a.hasResults ? '' : 'No PY2024 results yet'}</option>`)
-    .join('');
-  $('aco-search').value = state.aco ? acoLabel(state.aco) : '';
+function openOptions() {
+  $('aco-options').hidden = false;
+  $('aco-search').setAttribute('aria-expanded', 'true');
+  renderOptions();
 }
 
-// ---------- observed (CMS) ----------
-
-function vsMedian(value, median, format, lowerIsBetter = false) {
-  if (value === null || value === undefined || median === null) return '';
-  const diff = value - median;
-  if (Math.abs(diff) < 1e-9) return `MSSP median ${fmt(median, format)}`;
-  const better = lowerIsBetter ? diff < 0 : diff > 0;
-  return `<span class="${better ? 'good' : 'warn'}">${diff > 0 ? 'Above' : 'Below'}</span> MSSP median ${fmt(median, format)}`;
+function closeOptions() {
+  $('aco-options').hidden = true;
+  $('aco-search').setAttribute('aria-expanded', 'false');
+  state.active = -1;
 }
 
-function tile(label, value, sub, source) {
-  return `<div class="tile"><div class="tile-label">${esc(label)}</div><div class="tile-value">${value}</div>
-    ${sub ? `<div class="tile-sub">${sub}</div>` : ''}<div class="tile-src">${esc(source)}</div></div>`;
+function chooseOption(i) {
+  const r = state.options[i];
+  if (!r) return;
+  const chosen = new Set(state.selected);
+  if (r.kind === 'all') {
+    if (r.all) r.ids.forEach((id) => chosen.delete(id));
+    else r.ids.forEach((id) => chosen.add(id));
+  } else if (chosen.has(r.aco.id)) chosen.delete(r.aco.id);
+  else chosen.add(r.aco.id);
+  selectionChanged([...chosen]);
+  renderOptions();
 }
+
+function selectionChanged(ids) {
+  applySelection(ids);
+  writeUrl();
+  renderAll({ keepPicker: true });
+}
+
+function renderChips() {
+  const acos = selectedAcos();
+  const shown = acos.slice(0, 8);
+  $('chips').innerHTML = acos.length
+    ? shown.map((a) => `<span class="chip">${esc(a.name)} <button type="button" class="chip-x" data-id="${esc(a.id)}" aria-label="Remove ${esc(a.name)}">×</button></span>`).join('')
+      + (acos.length > shown.length ? `<span class="chip chip-more">+${acos.length - shown.length} more</span>` : '')
+      + '<button type="button" class="link-btn" id="clear-acos">Clear</button>'
+    : '<span class="muted">None selected. Showing the median MSSP ACO.</span>';
+}
+
+// ---------- CMS data ----------
+
+const sum = (xs) => xs.reduce((s, x) => s + (x ?? 0), 0);
+function weighted(acos, value, weight) {
+  let w = 0;
+  let t = 0;
+  for (const a of acos) {
+    const v = value(a);
+    const k = weight(a);
+    if (v === null || v === undefined || !k) continue;
+    w += k;
+    t += v * k;
+  }
+  return w ? t / w : null;
+}
+
+function tile(label, value, sub, column) {
+  return `<div class="tile">
+    <div class="tile-head"><span class="tile-label">${esc(label)}</span>${info(`<strong>Source:</strong> ${esc(state.data.meta.sources.results.short)}<br><code>${esc(column)}</code>`, `Source for ${label}`)}</div>
+    <div class="tile-value">${value}</div>${sub ? `<div class="tile-sub">${sub}</div>` : ''}</div>`;
+}
+
+const vsMedian = (key, format) => `Median ACO: ${esc(fmt(state.data.medians[key], format))}`;
 
 function renderObserved() {
-  const a = state.aco;
+  const src = state.data.meta.sources.results;
+  $('observed-source').innerHTML = `${tag('cms')} <a class="cite" href="${esc(src.page)}" target="_blank" rel="noopener">MSSP PY2024 results, released ${esc(src.released)}</a>`;
+
+  const acos = selectedAcos();
+  const withRes = acos.filter((a) => a.hasResults);
   const m = state.data.medians;
-  const src = state.data.meta.sources;
-  const counts = state.data.meta.counts;
-  $('observed-sub').innerHTML = `${esc(src.results.name)}, released ${esc(src.results.released)}. ${counts.withResults} ACOs with results; ${counts.active2026} in the 2026 program. <a href="${esc(src.results.page)}" target="_blank" rel="noopener">Source</a>`;
+  let notice = '';
+  let tiles;
 
-  if (!a) {
-    $('observed-notice').innerHTML = `<p class="notice">No ACO selected. The baseline uses MSSP PY2024 medians across ${counts.withResults} ACOs. Search above to load a specific ACO.</p>`;
-  } else if (!a.hasResults) {
-    $('observed-notice').innerHTML = `<p class="notice"><strong>${esc(a.name)}</strong> (${esc(a.id)}) is in the 2026 program${a.track2026 ? ` on ${esc(a.track2026)}` : ''} but joined after PY2024, so CMS has not published results. The baseline uses MSSP medians. Enter the ACO's own numbers in the inputs.</p>`;
+  if (withRes.length >= 2) {
+    const missing = acos.length - withRes.length;
+    if (missing) notice = `<p class="notice">${missing} of ${acos.length} selected ACOs joined after PY2024 and have no CMS results. They are left out of every number below.</p>`;
+    const admits = (a) => (a.lum * a.stAdmitsPer1000) / 1000;
+    const cleared = withRes.filter((a) => a.savingsRate >= a.msr).length;
+    const savings = sum(withRes.map((a) => a.savingsTotal));
+    const bench = sum(withRes.map((a) => a.benchmarkTotal));
+    tiles = [
+      tile('ACOs with CMS results', `${fmt(withRes.length, 'number0')}`, `of ${fmt(acos.length, 'number0')} selected`, 'ACO_ID'),
+      tile('Assigned beneficiaries', fmt(sum(withRes.map((a) => a.lum)), 'number0'), 'Total', 'N_AB'),
+      tile('Cleared their MSR', `${cleared} <span class="tile-of">of ${withRes.length}</span>`, `Combined savings rate ${fmt(savings / bench, 'percent1')}`, 'Sav_rate vs MinSavPerc'),
+      tile('Shared savings earned', fmt(sum(withRes.map((a) => a.earned)), 'currencyCompact'), 'Total, PY2024', 'EarnSaveLoss'),
+      tile('30-day readmission rate', fmt(weighted(withRes, (a) => a.readmitRate, admits), 'percent1'), `Weighted by admissions. ${vsMedian('readmitRate', 'percent1')}`, 'Measure_479'),
+      tile('Admissions per 1,000', fmt(weighted(withRes, (a) => a.stAdmitsPer1000, (a) => a.lum), 'number0'), vsMedian('stAdmitsPer1000', 'number0'), 'ADM_S_Trm'),
+      tile('Cost per admission', fmt(weighted(withRes, (a) => a.costPerAdmit, admits), 'currency0'), vsMedian('costPerAdmit', 'currency0'), 'CapAnn_INP_S_trm ÷ ADM_S_Trm'),
+      tile('Quality score', fmt(weighted(withRes, (a) => a.qualityScore, (a) => a.lum), 'number1'), `Weighted by beneficiaries. ${vsMedian('qualityScore', 'number1')}`, 'QualScore'),
+    ];
   } else {
-    $('observed-notice').innerHTML = a.active2026 ? '' : `<p class="notice notice-warn"><strong>${esc(a.name)}</strong> is not in the 2026 ACO list. These are its PY2024 results.</p>`;
+    const a = withRes[0] ?? null;
+    const named = acos[0];
+    if (!acos.length) notice = `<p class="notice">No ACO selected. Showing the median of ${fmt(state.data.meta.counts.withResults, 'number0')} MSSP ACOs.</p>`;
+    else if (!a) notice = `<p class="notice">${esc(named.name)} joined after PY2024. CMS has no results yet, so MSSP medians fill in. Edit them under ACO baseline.</p>`;
+    else if (acos.length > 1) notice = `<p class="notice">Only ${esc(a.name)} of the ${acos.length} selected ACOs has PY2024 results.</p>`;
+    else if (!a.active2026) notice = `<p class="notice">${esc(a.name)} is not in the 2026 program. Showing its PY2024 results.</p>`;
+    const v = (k) => (a ? a[k] : m[k]);
+    const gap = v('savingsRate') - v('msr');
+    tiles = [
+      tile('Assigned beneficiaries', fmt(v('lum'), 'number0'), a ? vsMedian('lum', 'number0') : 'Median ACO', 'N_AB'),
+      tile('Track in 2026', esc(a?.track2026 ?? (a ? 'Not in 2026 program' : 'n/a')), a ? `${esc(a.riskModel)} in PY2024` : '', 'Current_Track; 2026 ACO list'),
+      tile('Savings rate vs. MSR', `${fmt(v('savingsRate') / 100, 'percent1')} <span class="tile-of">vs ${fmt(v('msr') / 100, 'percent1')}</span>`, gap >= 0 ? `Cleared MSR by ${fmt(gap / 100, 'percent1')}` : `<span class="warn">Short of MSR by ${fmt(-gap / 100, 'percent1')}</span>`, 'Sav_rate; MinSavPerc'),
+      tile('Shared savings earned', a ? fmt(a.earned, 'currencyCompact') : 'n/a', a ? `Sharing rate ${fmt(a.shareRate / 100, 'percent0')}` : '', 'EarnSaveLoss; FinalShareRate'),
+      tile('30-day readmission rate', fmt(v('readmitRate'), 'percent1'), a ? vsMedian('readmitRate', 'percent1') : '', 'Measure_479'),
+      tile('Admissions per 1,000', fmt(v('stAdmitsPer1000'), 'number0'), a ? vsMedian('stAdmitsPer1000', 'number0') : '', 'ADM_S_Trm'),
+      tile('Cost per admission', fmt(v('costPerAdmit'), 'currency0'), a ? vsMedian('costPerAdmit', 'currency0') : '', 'CapAnn_INP_S_trm ÷ ADM_S_Trm'),
+      tile('Quality score', fmt(v('qualityScore'), 'number1'), a ? vsMedian('qualityScore', 'number1') : '', 'QualScore'),
+    ];
   }
-
-  const h = a?.hasResults ? a : null;
-  const v = (k) => (h ? h[k] : m[k]);
-  const label = h ? '' : ' (median)';
-  const gap = v('savingsRate') - v('msr');
-  const pos = Math.max(0, Math.min(100, (v('savingsRate') / Math.max(v('msr') * 3, v('savingsRate'), 1)) * 100));
-  const msrPos = Math.max(0, Math.min(100, (v('msr') / Math.max(v('msr') * 3, v('savingsRate'), 1)) * 100));
-  const tiles = [
-    tile(`Assigned beneficiaries (LUM)${label}`, fmt(v('lum'), 'number0'), h ? vsMedian(h.lum, m.lum, 'number0') : '', 'N_AB'),
-    tile('Track', esc(a?.track2026 ?? (a ? 'Not in 2026 program' : 'n/a')), h ? `PY2024: ${esc(h.trackPY)}, ${esc(h.riskModel.toLowerCase())}, ${esc(h.assignment.toLowerCase())} assignment` : '', '2026 ACO list; Current_Track'),
-    tile(`Benchmark vs. spending per capita${label}`, `${fmt(v('benchmarkPC'), 'currency0')} <span class="tile-vs">vs</span> ${fmt(v('expenditurePC'), 'currency0')}`, h ? `Total benchmark ${fmt(h.benchmarkTotal, 'currency0')}` : '', 'UpdatedBnchmk; Per_Capita_Exp_TOTAL_PY'),
-    tile(`Savings rate vs. MSR${label}`, `${fmt(v('savingsRate') / 100, 'percent1')} <span class="tile-vs">vs</span> ${fmt(v('msr') / 100, 'percent1')}`,
-      `<span class="meter" aria-hidden="true"><span class="meter-fill ${gap >= 0 ? '' : 'is-below'}" style="width:${pos.toFixed(1)}%"></span><span class="meter-mark" style="left:${msrPos.toFixed(1)}%"></span></span>${gap >= 0 ? `Cleared the MSR by ${fmt(gap / 100, 'percent1')}` : `<span class="warn">Short of the MSR by ${fmt(-gap / 100, 'percent1')}</span>`}`,
-      'Sav_rate; MinSavPerc'),
-    tile(`Earned shared savings${label}`, h ? fmt(h.earned, 'currency0') : 'n/a', h ? `Quality score ${fmt(h.qualityScore, 'number1')}; sharing rate ${fmt(h.shareRate / 100, 'percent0')}` : `Median quality score ${fmt(m.qualityScore, 'number1')}`, 'EarnSaveLoss; QualScore; FinalShareRate'),
-    tile(`30-day readmission rate${label}`, fmt(v('readmitRate'), 'percent1'), h ? vsMedian(h.readmitRate, m.readmitRate, 'percent1', true) : '', 'Measure_479 (hospital-wide, risk-standardized)'),
-    tile(`Short-term admissions per 1,000${label}`, fmt(v('stAdmitsPer1000'), 'number0'), h ? vsMedian(h.stAdmitsPer1000, m.stAdmitsPer1000, 'number0', true) : '', 'ADM_S_Trm'),
-    tile(`Cost per short-term admission${label}`, fmt(v('costPerAdmit'), 'currency0'), h ? vsMedian(h.costPerAdmit, m.costPerAdmit, 'currency0', true) : '', 'Derived: CapAnn_INP_S_trm ÷ ADM_S_Trm'),
-    tile(`ED visits per 1,000${label}`, fmt(v('edPer1000'), 'number0'), h ? vsMedian(h.edPer1000, m.edPer1000, 'number0', true) : '', 'P_EDV_Vis'),
-    tile('Controlling BP / HbA1c poor control', h?.controllingBP ? `${fmt(h.controllingBP.value / 100, 'percent1')} <span class="tile-vs">/</span> ${h.hba1cPoor ? fmt(h.hba1cPoor.value / 100, 'percent1') : 'n/a'}` : 'n/a', h?.controllingBP ? `Reported via ${esc(h.controllingBP.collection)}. Lower is better for HbA1c.` : '', 'QualityID_236; QualityID_001'),
-    tile(`Dual-eligible share${label}`, fmt(v('percDual') / 100, 'percent1'), h ? vsMedian(h.percDual, m.percDual, 'number1') : '', 'Perc_Dual'),
-    tile('Clinicians', h ? `${fmt(h.nPCP, 'number0')} <span class="tile-vs">PCPs</span>` : 'n/a', h ? `${fmt(h.nSpec, 'number0')} specialists; ${fmt(h.nNPPA, 'number0')} NPs/PAs; ${fmt(h.nHosp, 'number0')} hospitals` : '', 'N_PCP; N_Spec; N_NP; N_PA; N_Hosp'),
-  ];
+  $('observed-notice').innerHTML = notice;
   $('tiles').innerHTML = tiles.join('');
-
-  const det = $('participants');
-  det.hidden = !a;
-  if (a) {
-    $('participants-summary').textContent = `Participants in 2026: ${a.nParticipants === null ? 'not listed' : fmt(a.nParticipants, 'number0')}`;
-    $('participants-body').innerHTML = '<p class="hint">Loading...</p>';
-    if (det.open) renderParticipants();
-  }
+  renderAcoTable(acos);
 }
 
-async function renderParticipants() {
-  const a = state.aco;
-  if (!a) return;
-  const list = (await loadParticipants())[a.id] ?? [];
-  $('participants-body').innerHTML = `<p class="hint">Legal business names from the ${esc(state.data.meta.sources.participants.name)}. CMS does not publish participant TINs or assignment by TIN, so lives under management are shown for the whole ACO only.</p>
-    <ul class="participant-list">${list.map((n) => `<li>${esc(n)}</li>`).join('')}</ul>`;
+function renderAcoTable(acos) {
+  const card = $('aco-table-card');
+  card.hidden = acos.length < 2;
+  if (card.hidden) return;
+  const rows = [...acos].sort((a, b) => (b.lum ?? -1) - (a.lum ?? -1));
+  $('aco-table-summary').textContent = `${acos.length} selected ACOs`;
+  const pct = (x) => (x === null || x === undefined ? '<span class="muted">n/a</span>' : esc(fmt(x / 100, 'percent1')));
+  $('aco-table').innerHTML = `<thead><tr><th scope="col">ACO</th><th scope="col">2026 track</th><th scope="col" class="num">Assigned</th>
+      <th scope="col" class="num">Savings rate</th><th scope="col" class="num">MSR</th><th scope="col" class="num">Earned</th><th scope="col" class="num">Readmission</th></tr></thead>
+    <tbody>${rows.map((a) => `<tr><th scope="row">${esc(a.name)} <span class="muted">${esc(a.id)}</span></th><td>${esc(a.track2026 ?? 'Not in 2026')}</td>
+      ${a.hasResults
+        ? `<td class="num">${esc(fmt(a.lum, 'number0'))}</td><td class="num">${pct(a.savingsRate)}</td><td class="num">${pct(a.msr)}</td><td class="num">${esc(fmt(a.earned, 'currencyCompact'))}</td><td class="num">${a.readmitRate === null ? '<span class="muted">n/a</span>' : esc(fmt(a.readmitRate, 'percent1'))}</td>`
+        : '<td colspan="5" class="muted">No PY2024 results</td>'}</tr>`).join('')}</tbody>`;
 }
 
 // ---------- inputs ----------
 
-function inputField(input) {
+function originTag(input) {
+  if (Number(state.values[input.id]) !== Number(state.defaults[input.id])) return tag('edited');
+  if (state.origin[input.id] === 'cms') return tag('cms');
+  if (state.origin[input.id] === 'median') return tag('median');
+  return '';
+}
+
+function fieldTags(input) {
   const a = input.assumptionId ? ASSUMPTIONS[input.assumptionId] : null;
-  const badges = [input.placeholder && placeholderBadge(), a?.verify && verifyBadge()].filter(Boolean).join(' ');
+  return `${originTag(input)}${input.placeholder ? tag('placeholder') : ''}${a?.verify && input.group !== 'uncertainty' ? verifyTag() : ''}`;
+}
+
+function fieldTip(input) {
+  const a = input.assumptionId ? ASSUMPTIONS[input.assumptionId] : null;
+  const parts = [];
+  if (input.column) parts.push(`<strong>CMS column:</strong> <code>${esc(input.column)}</code>`);
+  if (input.tip) parts.push(esc(input.tip));
+  if (a) parts.push(`${esc(a.note)}<br>${a.sources.map(citation).join(' · ')}`);
+  return parts.length ? info(parts.join('<br>'), `About ${input.label}`) : '';
+}
+
+function inputField(input) {
   const prefix = input.kind === 'currency' ? '<span class="affix">$</span>' : '';
   const suffix = input.kind === 'percent' ? '%' : input.suffix ?? '';
   const max = input.kind === 'percent' ? ' max="100"' : input.max ? ` max="${input.max}"` : '';
-  const step = input.step ?? 1;
   return `<div class="field">
-      <label for="in-${input.id}">${esc(input.label)} ${badges}</label>
-      <div class="control">
-        ${prefix}
-        <input id="in-${input.id}" name="${input.id}" type="number" inputmode="decimal" min="0"${max} step="${step}"
-          value="${esc(state.values[input.id])}" aria-describedby="hint-${input.id}">
-        ${suffix ? `<span class="affix">${esc(suffix)}</span>` : ''}
-      </div>
-      <p class="hint" id="hint-${input.id}"><span class="origin" id="origin-${input.id}">${originBadge(input)}</span>${input.help ? ` ${esc(input.help)}` : ''}${a ? ` ${a.sources.map(citation).join(' ')}` : ''}</p>
+      <div class="field-head"><label for="in-${input.id}">${esc(input.label)}</label>${fieldTip(input)}</div>
+      <div class="control">${prefix}
+        <input id="in-${input.id}" name="${input.id}" type="number" inputmode="decimal" min="0"${max} step="${input.step ?? 1}" value="${esc(state.values[input.id])}">
+        ${suffix ? `<span class="affix">${esc(suffix)}</span>` : ''}</div>
+      <div class="field-tags" id="origin-${input.id}">${fieldTags(input)}</div>
     </div>`;
 }
 
 function renderInputs() {
+  const multi = isMulti();
+  const n = selectedAcos().filter((a) => a.hasResults).length;
   $('inputs').innerHTML = GROUPS.map((g) => {
-    const fields = INPUTS.filter((i) => i.group === g.id).map(inputField).join('');
-    const note = g.note ? `<p class="group-note">${esc(g.note)}</p>` : '';
+    let body = INPUTS.filter((i) => i.group === g.id).map(inputField).join('');
+    if (g.id === 'aco' && multi) body = `<p class="group-note">Using each of the ${n} ACOs' own CMS data. Select one ACO to edit these.</p>`;
     return g.collapsible
-      ? `<details class="group group-collapsible"><summary>${esc(g.label)}</summary><div class="group-body">${note}${fields}</div></details>`
-      : `<fieldset class="group"><legend>${esc(g.label)}</legend>${note}${fields}</fieldset>`;
+      ? `<details class="group group-collapsible"><summary>${esc(g.label)}</summary><div class="group-body">${body}</div></details>`
+      : `<fieldset class="group"><legend>${esc(g.label)}</legend>${body}</fieldset>`;
   }).join('');
 }
 
-function renderScenario() {
-  $('scenario').innerHTML = '<legend class="sr-only">Scenario</legend>' + SCENARIOS.map(
-    (s) => `<label class="seg"><input type="radio" name="scenario" value="${s.id}"${s.id === state.scenario ? ' checked' : ''}><span>${esc(s.label)}</span></label>`,
-  ).join('');
-}
-
-// ---------- results ----------
-
-const stat = (label, value, format, opts = {}) => {
-  const neg = Number.isFinite(value) && value < 0;
-  return `<div class="stat ${opts.primary ? 'stat-primary' : ''} ${neg ? 'is-negative' : ''}">
-    <div class="stat-label">${esc(label)}</div><div class="stat-value">${esc(fmt(value, format))}</div>
-    ${opts.sub ? `<div class="stat-sub">${opts.sub}</div>` : ''}</div>`;
-};
+// ---------- pilot ----------
 
 function renderPilot(r) {
   const p = r.pilot;
-  $('pilot-title').textContent = `Pilot: ${fmt(p.cohort, 'number0')} chronic patients and ${fmt(p.discharges, 'number0')} discharges over ${p.months} months`;
+  $('pilot-heading').textContent = `Pilot: ${fmt(p.cohort, 'number0')} patients, ${fmt(p.discharges, 'number0')} discharges, ${p.months} months`;
   $('pilot-stats').innerHTML = [
-    stat('Expected savings during pilot', p.gross, 'currency0', { primary: true }),
-    stat('Pilot cost', p.cost, 'currency0'),
-    stat('Net during pilot', p.net, 'currency0'),
-    stat('Newly adherent patients', p.newlyAdherent, 'number0', { sub: `${fmt(p.readmitsAvoided, 'number1')} readmissions avoided` }),
+    statCard({
+      label: 'Medicare spending avoided during pilot', value: r.dist.pilotGross.p50, sub: range(r.dist.pilotGross), tags: ['estimate'], primary: true,
+      tip: `Median of ${fmt(DRAWS, 'number0')} simulated outcomes.<br><strong>CMS data:</strong> readmission rate, cost per admission.<br><strong>Assumed:</strong> engagement, adherence effect, readmission reduction, savings per adherent patient.`,
+    }),
+    statCard({
+      label: 'Pilot cost', value: p.cost, sub: `${fmt(p.cohort, 'number0')} patients × ${p.months} months + ${fmt(p.discharges, 'number0')} discharges`, tags: ['placeholder'],
+      tip: 'Placeholder prices, not Generated Health pricing. Change them under Price.',
+    }),
+    statCard({
+      label: 'Net during pilot', value: r.dist.pilotNet.p50, sub: range(r.dist.pilotNet), tags: ['estimate'],
+      tip: 'Spending avoided minus pilot cost. Savings are prorated by month with no ramp-up.',
+    }),
   ].join('');
 
   const cell = (v, f) => (v === null ? '<span class="muted">n/a</span>' : esc(fmt(v, f)));
-  $('scorecard').innerHTML = `<thead><tr><th scope="col">Pilot success metric</th><th scope="col" class="num">Baseline</th><th scope="col" class="num">Our target</th>
-      <th scope="col" class="num">Needed per arm</th><th scope="col" class="num">Pilot has</th><th scope="col">Provable in pilot?</th></tr></thead>
+  const readmitKnown = isMulti() || state.origin.baselineReadmit === 'cms';
+  const nowTag = { adherence: tag('assumption'), readmit: readmitKnown ? tag('cms') : tag('median') };
+  $('scorecard').innerHTML = `<thead><tr>
+      <th scope="col">Measure</th><th scope="col" class="num">Now</th><th scope="col" class="num">Target</th>
+      <th scope="col" class="num">Needed per group ${info('Patients per group (program and comparison) to detect the target with 95% confidence and 80% power. Two-proportion z-test.', 'About needed per group')}</th>
+      <th scope="col" class="num">Pilot has</th>
+      <th scope="col">Provable in pilot? ${info('<strong>Yes:</strong> pilot is large enough to show the effect.<br><strong>No:</strong> too small; treat as directional.<br><strong>Counted:</strong> measured directly, no comparison needed.', 'About provable')}</th></tr></thead>
     <tbody>${r.scorecard.map((row) => `<tr>
-      <th scope="row">${esc(row.metric)}<div class="note">${esc(row.measure)}</div></th>
-      <td class="num">${cell(row.baseline, row.format)}</td>
+      <th scope="row">${esc(row.metric)}<div class="row-sub">${esc(row.measure)}</div></th>
+      <td class="num">${cell(row.baseline, row.format)} ${nowTag[row.id] ?? ''}</td>
       <td class="num strong">${cell(row.target, row.format)}</td>
       <td class="num">${row.required === null ? '<span class="muted">n/a</span>' : esc(fmt(row.required, 'number0'))}</td>
       <td class="num">${esc(fmt(row.have, 'number0'))}</td>
-      <td>${row.detectable === null ? badge('badge-direct', 'Measured directly') : row.detectable ? badge('badge-yes', 'Yes') : badge('badge-no', 'Directional only')}</td>
+      <td>${row.provable === null ? '<span class="pill pill-direct">Counted</span>' : row.provable ? '<span class="pill pill-yes">Yes</span>' : '<span class="pill pill-no">No</span>'}</td>
     </tr>`).join('')}</tbody>`;
-
-  const notProvable = r.scorecard.filter((x) => x.detectable === false);
-  $('pilot-callout').innerHTML = notProvable.length
-    ? `At this size the pilot can confirm ${r.scorecard[1].detectable ? 'engagement, completion, and the adherence lift' : 'engagement and completion'}. ${notProvable.map((x) => `<strong>${esc(x.metric.split(',')[0])}</strong> needs about ${fmt(x.required, 'number0')} per arm`).join('; ')}, so treat it as directional in the pilot and confirm it in the first scaled year against a comparison group.`
-    : 'At this size every metric with a statistical test is powered to detect the targeted effect (alpha 0.05, power 0.80), assuming a comparable comparison group.';
 }
 
-function renderScale(r, all) {
+// ---------- distribution chart ----------
+
+const GAIN = '#008c99';
+const LOSS = '#b5452f';
+
+function niceTicks(lo, hi, count = 5) {
+  const raw = (hi - lo) / count;
+  const mag = 10 ** Math.floor(Math.log10(raw || 1));
+  const step = [1, 2, 2.5, 5, 10].map((m) => m * mag).find((s) => s >= raw);
+  const ticks = [];
+  for (let t = Math.ceil(lo / step) * step; t <= hi + 1e-9; t += step) ticks.push(Math.abs(t) < 1e-9 ? 0 : t);
+  return ticks;
+}
+
+function renderDist(r) {
+  const d = r.dist.acoNet;
+  const hist = d.hist;
+  const W = 640;
+  const H = 220;
+  const M = { l: 12, r: 12, t: 30, b: 30 };
+  const x0 = hist[0].lo;
+  const x1 = hist[hist.length - 1].hi;
+  const x = (v) => M.l + ((v - x0) / (x1 - x0 || 1)) * (W - M.l - M.r);
+  const maxShare = Math.max(...hist.map((b) => b.share), 1e-9);
+  const y = (s) => H - M.b - (s / maxShare) * (H - M.t - M.b);
+  const base = H - M.b;
+
+  const bars = hist.map((b, i) => {
+    const slot = x(b.hi) - x(b.lo);
+    const w = Math.max(1, Math.min(24, slot - 2));
+    const left = x(b.lo) + (slot - w) / 2;
+    const top = y(b.share);
+    const h = base - top;
+    const r4 = Math.min(4, w / 2, h);
+    const color = b.hi <= 0 ? LOSS : GAIN;
+    const path = h <= 0 ? '' : `<path d="M${left},${base} V${top + r4} Q${left},${top} ${left + r4},${top} H${left + w - r4} Q${left + w},${top} ${left + w},${top + r4} V${base} Z" fill="${color}"/>`;
+    return `${path}<rect class="hit" data-i="${i}" x="${x(b.lo)}" y="${M.t}" width="${slot}" height="${base - M.t}" fill="transparent"/>`;
+  }).join('');
+
+  const ticks = niceTicks(x0, x1).map((t) => `<g><line x1="${x(t)}" x2="${x(t)}" y1="${base}" y2="${base + 4}" stroke="var(--line-strong)"/>
+    <text x="${x(t)}" y="${base + 18}" text-anchor="middle" class="axis">${esc(fmt(t, 'currencyCompact'))}</text></g>`).join('');
+
+  const marker = (v, label, anchor) => (v < x0 || v > x1 ? '' : `<line x1="${x(v)}" x2="${x(v)}" y1="${M.t - 4}" y2="${base}" stroke="var(--ink)" stroke-width="1"/>
+    <text x="${x(v)}" y="${M.t - 10}" text-anchor="${anchor}" class="marker">${esc(label)}</text>`);
+  const edgeAnchor = (px) => (px < W * 0.15 ? 'start' : px > W * 0.85 ? 'end' : 'middle');
+  const close = Math.abs(x(d.p50) - x(0)) < 110;
+  const zeroAnchor = close ? (d.p50 > 0 ? 'end' : 'start') : edgeAnchor(x(0));
+  const medAnchor = close ? (d.p50 > 0 ? 'start' : 'end') : edgeAnchor(x(d.p50));
+
+  $('dist').innerHTML = `<figcaption class="dist-title"><span>ACO net gain per year: ${fmt(DRAWS, 'number0')} simulated outcomes</span>${tag('estimate')}${info('Each outcome draws engagement, adherence effect, savings realized, follow-up completion, and readmission reduction from their distributions (see Effect assumptions), then runs the CMS shared-savings math. Net gain = shared savings paid to the ACO minus program cost.', 'About this chart')}</figcaption>
+    <div class="chart-wrap">
+      <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Histogram of ACO net gain. Median ${esc(fmt(d.p50, 'currency0'))}; ${esc(fmt(d.probPositive, 'percent0'))} of outcomes above zero.">
+        <line x1="${M.l}" x2="${W - M.r}" y1="${base}" y2="${base}" stroke="var(--line-strong)"/>
+        ${bars}${ticks}
+        ${marker(0, 'Break-even', zeroAnchor)}
+        ${marker(d.p50, `Median ${fmt(d.p50, 'currencyCompact')}`, medAnchor)}
+      </svg>
+      <div class="chart-tip" id="chart-tip" hidden></div>
+    </div>
+    <div class="legend"><span><i style="background:${LOSS}"></i>ACO loses money</span><span><i style="background:${GAIN}"></i>ACO comes out ahead</span></div>`;
+
+  const svg = $('dist').querySelector('svg');
+  const tip = $('chart-tip');
+  svg.addEventListener('mousemove', (e) => {
+    const hit = e.target.closest('.hit');
+    if (!hit) return (tip.hidden = true);
+    const b = hist[Number(hit.dataset.i)];
+    tip.innerHTML = `<strong>${esc(fmt(b.lo, 'currencyCompact'))} to ${esc(fmt(b.hi, 'currencyCompact'))}</strong><br>${esc(fmt(b.share, 'percent1'))} of outcomes`;
+    const box = svg.getBoundingClientRect();
+    tip.style.left = `${Math.min(box.width - 150, Math.max(0, e.clientX - box.left + 10))}px`;
+    tip.style.top = `${Math.max(0, e.clientY - box.top - 50)}px`;
+    tip.hidden = false;
+  });
+  svg.addEventListener('mouseleave', () => (tip.hidden = true));
+
+  $('dist-side').innerHTML = `<div class="prob">
+      <div class="stat-head"><span class="stat-label">${r.units.length > 1 ? 'Chance the ACOs come out ahead (combined)' : 'Chance the ACO comes out ahead'}</span>${info('Share of simulated outcomes where shared savings paid to the ACO exceed program cost.', 'About chance')}</div>
+      <div class="prob-value">${esc(fmt(d.probPositive, 'percent0'))}</div>${tag('estimate')}</div>
+    <table class="data-table pct-table"><caption class="sr-only">ACO net gain percentiles</caption><tbody>
+      <tr><th scope="row">Bad year (10th percentile)</th><td class="num">${esc(fmt(d.p10, 'currency0'))}</td></tr>
+      <tr><th scope="row">Median</th><td class="num strong">${esc(fmt(d.p50, 'currency0'))}</td></tr>
+      <tr><th scope="row">Good year (90th percentile)</th><td class="num">${esc(fmt(d.p90, 'currency0'))}</td></tr>
+    </tbody></table>`;
+}
+
+// ---------- scale cards ----------
+
+function renderScale(r) {
   const s = r.scale;
-  $('scale-stats').innerHTML = [
-    stat('ACO net per year', r.acoNet, 'currency0', { primary: true, sub: 'ACO shared savings minus program cost' }),
-    stat('ACO shared savings from program', r.acoShare, 'currency0', { sub: `${fmt(r.terms.shareRate, 'percent0')} sharing rate` }),
-    stat('Program cost per year', s.programCost, 'currency0', { sub: `${fmt(s.enrolledTotal, 'number0')} enrolled; ${fmt(s.discharges, 'number0')} discharges` }),
-    stat('Gross Medicare A/B savings', s.gross, 'currency0', { sub: `${fmt(r.savingsPctOfBenchmark, 'percent1')} of benchmark` }),
-  ].join('');
-
-  const scen = SCENARIOS.find((x) => x.id === state.scenario).label.toLowerCase();
-  $('breakeven').innerHTML = r.breakEven.aco === null
-    ? `Under the ${esc(scen)} scenario the ACO does not break even even at 10× the targeted effect. Lower the price or narrow enrollment.`
-    : `<strong>The ACO breaks even if the program delivers ${fmt(r.breakEven.aco, 'percent0')} of the ${esc(scen)} effect.</strong> Total Medicare spending breaks even at ${fmt(r.breakEven.total, 'percent0')}. Use the ACO figure as the scale-up threshold for the pilot.`;
-
-  const below = r.baselineSavings < r.terms.msr * r.benchmark;
-  $('msr-note').innerHTML = !below
-    ? `Before the program this ACO cleared its MSR, so each program dollar is shared at ${fmt(r.terms.shareRate, 'percent0')}. Medicare keeps ${fmt(r.medicareKeeps, 'currency0')}.`
-    : s.gross >= r.msrGap
-      ? `<strong>Before the program this ACO was ${fmt(r.msrGap, 'currency0')} short of its MSR.</strong> Program savings close that gap, so the ACO shares in all of its savings from the first dollar. That is why the ACO share can exceed program savings.`
-      : `<strong>Before the program this ACO was ${fmt(r.msrGap, 'currency0')} short of its MSR.</strong> Program savings of ${fmt(s.gross, 'currency0')} do not close the gap, so the ACO keeps nothing from the program unless other savings close it.`;
-
-  const values = SCENARIOS.map((x) => all[x.id].result.acoNet);
-  const max = Math.max(...values.map(Math.abs), 1);
-  $('comparison').innerHTML = `<h4 class="mini-title">ACO net per year by scenario</h4><div class="bars">${SCENARIOS.map((x) => {
-    const res = all[x.id].result;
-    const cls = [x.id === state.scenario ? 'is-active' : '', res.acoNet < 0 ? 'is-negative' : ''].join(' ');
-    return `<div class="bar-row ${cls}"><span class="bar-label">${esc(x.label)}</span>
-      <span class="bar-track"><span class="bar-fill" style="width:${((Math.abs(res.acoNet) / max) * 100).toFixed(1)}%"></span></span>
-      <span class="bar-value">${esc(fmt(res.acoNet, 'currency0'))} <span class="bar-sub">break-even ${res.breakEven.aco === null ? 'n/a' : fmt(res.breakEven.aco, 'percent0')}</span></span></div>`;
-  }).join('')}</div>`;
-
-  const rows = [
-    ['Enrolled: hypertension / diabetes / heart failure', `${fmt(s.conditions.htn.enrolled, 'number0')} / ${fmt(s.conditions.dm.enrolled, 'number0')} / ${fmt(s.conditions.hf.enrolled, 'number0')}`],
-    ['Newly adherent patients', fmt(s.newlyAdherentTotal, 'number0')],
-    ['Adherence savings', fmt(s.adherenceSavings, 'currency0')],
-    ['Readmissions avoided', fmt(s.readmitsAvoided, 'number0')],
-    ['Readmission savings', fmt(s.readmitSavings, 'currency0')],
-    ['Break-even chronic care PMPM for the ACO (TOC fee held)', fmt(safeBreakEvenPMPM(r), 'currency2')],
+  const multi = r.units.length > 1;
+  const u0 = r.units[0];
+  const known = multi
+    ? "each ACO's sharing rate, MSR, and benchmark (CMS PY2024)"
+    : `sharing rate ${esc(fmt(u0.shareRate, 'percent0'))}, MSR ${esc(fmt(u0.msr, 'percent1'))}, benchmark ${esc(fmt(u0.benchmark, 'currencyCompact'))}${state.origin.shareRate === 'cms' ? ' (CMS PY2024)' : ' (MSSP median)'}`;
+  const cards = [
+    statCard({
+      label: 'Shared savings revenue to ACO', value: r.dist.acoShare.p50, sub: range(r.dist.acoShare), tags: ['estimate'], primary: true,
+      tip: `Extra shared-savings payment CMS would make to the ACO because of the program. Paid only if the ACO's total savings clear its MSR.<br><strong>Known:</strong> ${known}.<br><strong>Estimated:</strong> Medicare spending avoided.`,
+    }),
+    statCard({
+      label: 'Program cost to ACO', value: s.cost, sub: `${fmt(s.enrolled, 'number0')} patients, ${fmt(s.discharges, 'number0')} discharges`, tags: ['placeholder'],
+      tip: '<strong>Known:</strong> assigned beneficiaries and admissions (CMS).<br><strong>Assumed:</strong> prevalence, enrollment share, price.',
+    }),
+    statCard({
+      label: 'Medicare spending avoided', value: r.dist.gross.p50, sub: `${range(r.dist.gross)}<br>${esc(fmt(r.savingsPctOfBenchmark, 'percent1'))} of benchmark`, tags: ['estimate'],
+      tip: 'Medicare Parts A and B spending avoided by better adherence and fewer readmissions. CMS keeps the part not shared with the ACO.',
+    }),
   ];
-  $('breakdown').innerHTML = `<tbody>${rows.map(([k, v]) => `<tr><th scope="row">${esc(k)}</th><td>${esc(v)}</td></tr>`).join('')}</tbody>`;
+
+  const below = s.perAco.filter((u) => u.belowMsr);
+  if (below.length) {
+    const closes = below.filter((u) => u.closesGap).length;
+    cards.push(statCard({
+      label: multi ? 'ACOs short of their MSR' : 'Short of MSR before program',
+      value: multi ? `${below.length} <span class="tile-of">of ${r.units.length}</span>` : esc(fmt((u0.msr - u0.savingsRate) * u0.benchmark, 'currencyCompact')),
+      sub: multi ? `Program closes the gap for ${closes} (central case)` : closes ? 'Program closes the gap (central case)' : 'Program does not close the gap (central case)',
+      tags: ['cms', 'estimate'],
+      tip: 'Below the MSR an ACO gets no shared savings. Closing the gap unlocks sharing on all of its savings, not just the program’s.',
+    }));
+  }
+  $('scale-stats').innerHTML = cards.join('');
 }
 
-// PMPM at which the ACO's share covers program cost, holding the TOC fee.
-function safeBreakEvenPMPM(r) {
-  const mm = r.scale.memberMonths;
-  return mm > 0 ? (r.acoShare - r.scale.tocCost) / mm : null;
+// ---------- how this is calculated ----------
+
+function refChips(refs) {
+  return refs.map((ref) => {
+    if (ref.startsWith('input:')) {
+      const input = INPUTS.find((i) => i.id === ref.slice(6));
+      return `<span class="cite">${esc(input.label)}: ${input.column ? `<code>${esc(input.column)}</code>` : 'your input'}</span>`;
+    }
+    if (SOURCES[ref]) return citation(ref);
+    const a = ASSUMPTIONS[ref];
+    return a.sources.map(citation).join(' ') + (a.verify ? ` ${verifyTag()}` : '');
+  }).join(' ');
 }
 
 function renderMath(out) {
@@ -308,66 +532,75 @@ function renderMath(out) {
       ${s.refs.length ? `<div class="refs">${refChips(s.refs)}</div>` : ''}</div>`).join('')}</section>`).join('');
 }
 
-function renderAssumptions() {
-  const activeKey = SCENARIOS.find((s) => s.id === state.scenario).key;
-  const head = `<thead><tr><th scope="col">Parameter</th>${SCENARIOS.map((s) => `<th scope="col" class="num ${s.key === activeKey ? 'is-active' : ''}">${esc(s.label)}</th>`).join('')}<th scope="col">Source and notes</th></tr></thead>`;
-  const overrides = Object.fromEntries(INPUTS.filter((i) => i.assumptionId).map((i) => [i.assumptionId, i]));
+function renderAssumptions(r) {
   const rows = ASSUMPTION_IDS.map((id) => {
     const a = ASSUMPTIONS[id];
-    const badges = [a.verify && verifyBadge(), a.placeholder && placeholderBadge()].filter(Boolean).join(' ');
-    let cells;
-    if (isScenarioDependent(a)) {
-      cells = SCENARIOS.map((s) => `<td class="num ${s.key === activeKey ? 'is-active' : ''}">${esc(fmt(a[s.key], a.format))}</td>`).join('');
+    const spec = r.specs[id];
+    let dist;
+    let center;
+    let spread = '';
+    if (spec) {
+      const z = 1.2816;
+      const lo = spec.dist === 'lognormal' ? spec.median * Math.exp(-z * spec.sdLog) : Math.max(spec.min, spec.mean - z * spec.sd);
+      const hi = spec.dist === 'lognormal' ? spec.median * Math.exp(z * spec.sdLog) : Math.min(spec.max, spec.mean + z * spec.sd);
+      dist = spec.dist === 'lognormal' ? 'Log-normal' : 'Normal';
+      center = fmt(r.central[id], a.format);
+      spread = `${fmt(lo, a.format)} to ${fmt(hi, a.format)}`;
     } else {
-      const input = overrides[id];
-      const current = input ? Number(state.values[input.id]) / (input.kind === 'percent' ? 100 : 1) : a.value;
-      const differs = input && Math.abs(current - a.value) > 1e-9;
-      cells = `<td class="num fixed" colspan="3">${esc(fmt(a.value, a.format))}${differs ? ` <span class="override">now ${esc(fmt(current, a.format))}</span>` : ''}</td>`;
+      const input = INPUTS.find((i) => i.assumptionId === id);
+      const v = input ? Number(state.values[input.id]) / (input.kind === 'percent' ? 100 : 1) : a.value;
+      dist = 'Fixed';
+      center = fmt(v, a.format);
     }
-    return `<tr><th scope="row">${esc(a.label)} ${badges}</th>${cells}<td class="source">${a.sources.map(citation).join(' ')}<div class="note">${esc(a.note)}</div></td></tr>`;
+    const anchor = a.anchor ?? (a.sources.includes('cmsResults') ? 'CMS data' : a.sources.includes('author') ? 'Assumption' : 'Literature');
+    return `<tr><th scope="row">${esc(a.label)} ${a.verify ? verifyTag() : ''}${a.placeholder ? tag('placeholder') : ''}</th><td>${dist}</td><td class="num strong">${esc(center)}</td><td class="num">${esc(spread)}</td>
+      <td>${esc(anchor)}</td><td class="source">${a.sources.map(citation).join(' ')}<div class="row-sub">${esc(a.note)}</div></td></tr>`;
   }).join('');
-  $('assumptions').innerHTML = head + `<tbody>${rows}</tbody>`;
+  $('assumptions').innerHTML = `<thead><tr><th scope="col">Assumption</th><th scope="col">Distribution</th><th scope="col" class="num">Center</th><th scope="col" class="num">10th–90th</th><th scope="col">Anchored to</th><th scope="col">Source</th></tr></thead><tbody>${rows}</tbody>`;
 
+  const multi = r.units.length > 1;
   const prov = INPUTS.filter((i) => i.data).map((i) => {
     const v = Number(state.values[i.id]);
-    const shown = i.kind === 'percent' ? fmt(v / 100, 'percent1') : fmt(v, KIND_FORMAT[i.kind]);
-    return `<tr><th scope="row">${esc(i.label)}</th><td class="num">${esc(shown)}</td><td><code>${esc(i.column)}</code></td><td>${originBadge(i)}</td></tr>`;
+    const shown = multi ? 'Each ACO’s own value' : i.kind === 'percent' ? fmt(v / 100, 'percent1') : fmt(v, i.kind === 'currency' ? 'currency0' : 'number0');
+    return `<tr><th scope="row">${esc(i.label)}</th><td class="num">${esc(shown)}</td><td><code>${esc(i.column)}</code></td><td>${multi ? tag('cms') : originTag(i)}</td></tr>`;
   }).join('');
-  $('provenance').innerHTML = `<thead><tr><th scope="col">Input</th><th scope="col" class="num">Value used</th><th scope="col">PUF column</th><th scope="col">Origin</th></tr></thead><tbody>${prov}</tbody>`;
+  $('provenance').innerHTML = `<thead><tr><th scope="col">Input</th><th scope="col" class="num">Value</th><th scope="col">CMS column</th><th scope="col">Origin</th></tr></thead><tbody>${prov}</tbody>`;
 }
 
 function renderCaveats() {
   const items = [
-    'Patients with more than one condition are counted once per condition at scale, which inflates both program cost and savings. Use registry counts of unique patients when available.',
-    'Patients with heart failure may appear in both the chronic and TOC populations; estimates may double-count if they overlap.',
-    'Adherence savings use 2011-dollar observational estimates (Roebuck 2011), not inflation-adjusted. The pilot prorates them by month and assumes no ramp-up.',
-    'MSSP pass-through is simplified: no performance payment or loss caps, MLR assumed equal to MSR, PY2024 terms applied to a future year, and no benchmark rebasing. Verify against the current year’s CMS documentation.',
+    'Patients with more than one condition are counted once per condition at scale.',
+    'Savings per adherent patient are 2011-dollar observational estimates, not inflation-adjusted.',
+    'CMS settlement is simplified: no payment or loss caps, MLR equal to MSR, PY2024 terms, no benchmark rebasing.',
+    'Only the five effect assumptions vary in the simulation. Prevalence, prices, and CMS data are held fixed.',
   ];
   $('caveats').innerHTML = items.map((c) => `<li>${esc(c)}</li>`).join('');
 }
 
 function renderMeta() {
-  const scen = SCENARIOS.find((s) => s.id === state.scenario).label;
-  $('print-scenario').textContent = `Scenario: ${scen}`;
-  const who = state.aco ? acoLabel(state.aco) : 'MSSP median ACO';
-  $('print-meta').textContent = `${who} · Prepared ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })} · Scenario: ${scen}`;
+  const acos = selectedAcos();
+  const who = !acos.length ? 'Median MSSP ACO' : acos.length === 1 ? `${acos[0].name} (${acos[0].id})` : `${acos.length} ACOs: ${acos.slice(0, 3).map((a) => a.name).join('; ')}${acos.length > 3 ? '; ...' : ''}`;
+  $('print-meta').textContent = `${who} · ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`;
 }
 
+// ---------- render ----------
+
 function renderResults() {
-  const all = Object.fromEntries(SCENARIOS.map((s) => [s.id, compute(state.values, s.id)]));
-  const out = all[state.scenario];
-  renderPilot(out.result);
-  renderScale(out.result, all);
+  const out = compute(state.values, selectedAcos(), { medians: state.data.medians });
+  const r = out.result;
+  renderPilot(r);
+  renderDist(r);
+  renderScale(r);
   renderMath(out);
-  renderAssumptions();
+  renderAssumptions(r);
   renderMeta();
 }
 
-function renderAll() {
-  renderPicker();
+function renderAll({ keepPicker = false } = {}) {
+  if (!keepPicker) $('aco-search').value = state.query;
+  renderChips();
   renderObserved();
   renderInputs();
-  renderScenario();
   renderCaveats();
   renderResults();
 }
@@ -375,45 +608,61 @@ function renderAll() {
 // ---------- wiring ----------
 
 function bind() {
-  $('aco-search').addEventListener('change', (e) => {
-    const text = e.target.value.trim().toLowerCase();
-    if (!text) return;
-    const match = state.data.acos.find((a) => acoLabel(a).toLowerCase() === text)
-      ?? state.data.acos.find((a) => a.id.toLowerCase() === text)
-      ?? state.data.acos.find((a) => a.name.toLowerCase().includes(text));
-    if (!match) return;
-    setAco(match.id);
-    writeUrl();
-    renderAll();
+  const search = $('aco-search');
+  search.addEventListener('input', () => {
+    state.query = search.value;
+    state.active = state.query.trim().length >= 2 ? 0 : -1;
+    openOptions();
+  });
+  search.addEventListener('focus', openOptions);
+  search.addEventListener('keydown', (e) => {
+    const open = !$('aco-options').hidden;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (!open) openOptions();
+      state.active = Math.min(state.options.length - 1, state.active + 1);
+      renderOptions();
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      state.active = Math.max(0, state.active - 1);
+      renderOptions();
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (open && state.active >= 0) chooseOption(state.active);
+    } else if (e.key === 'Escape') {
+      closeOptions();
+    } else if (e.key === 'Backspace' && !search.value && state.selected.length) {
+      selectionChanged(state.selected.slice(0, -1));
+    }
+  });
+  $('aco-options').addEventListener('mousedown', (e) => {
+    const li = e.target.closest('[data-i]');
+    if (!li) return;
+    e.preventDefault(); // keep focus in the input
+    chooseOption(Number(li.dataset.i));
+  });
+  document.addEventListener('mousedown', (e) => {
+    if (!$('combo').contains(e.target)) closeOptions();
   });
 
-  $('aco-clear').addEventListener('click', () => {
-    setAco(null);
-    writeUrl();
-    renderAll();
+  $('chips').addEventListener('click', (e) => {
+    const x = e.target.closest('.chip-x');
+    if (x) selectionChanged(state.selected.filter((id) => id !== x.dataset.id));
+    if (e.target.id === 'clear-acos') selectionChanged([]);
   });
-
-  $('participants').addEventListener('toggle', (e) => e.target.open && renderParticipants());
 
   $('inputs').addEventListener('input', (e) => {
     const input = INPUTS.find((i) => i.id === e.target.name);
     if (!input) return;
     state.values[input.id] = e.target.value;
-    $(`origin-${input.id}`).innerHTML = originBadge(input);
+    $(`origin-${input.id}`).innerHTML = fieldTags(input);
     writeUrl();
     renderResults();
   });
   $('inputs').addEventListener('submit', (e) => e.preventDefault());
 
-  $('scenario').addEventListener('change', (e) => {
-    state.scenario = e.target.value;
-    writeUrl();
-    renderResults();
-  });
-
   $('reset').addEventListener('click', () => {
-    setAco(state.aco?.id ?? null);
-    state.scenario = DEFAULT_SCENARIO;
+    applySelection(state.selected, { keepEdits: false });
     writeUrl();
     renderAll();
   });
@@ -434,7 +683,7 @@ function bind() {
 
 function renderFooter() {
   $('footer').innerHTML = `<p>Independent prototype by ${esc(AUTHOR)}. Not affiliated with or endorsed by Generated Health. Estimates are illustrative.
-    <span class="no-print"> <a href="${esc(ROADMAP_URL)}" target="_blank" rel="noopener">Roadmap</a></span></p>`;
+    <span class="no-print"><a href="${esc(ROADMAP_URL)}" target="_blank" rel="noopener">Roadmap</a></span></p>`;
 }
 
 async function main() {
@@ -442,7 +691,7 @@ async function main() {
   try {
     await loadData();
   } catch (err) {
-    document.querySelector('main').innerHTML = `<p class="notice notice-warn">Could not load CMS data (${esc(err.message)}). Serve this folder over HTTP, for example <code>python3 -m http.server</code>.</p>`;
+    document.querySelector('main').innerHTML = `<p class="notice">Could not load CMS data (${esc(err.message)}). Serve this folder over HTTP, for example <code>python3 -m http.server</code>.</p>`;
     return;
   }
   readUrl();
