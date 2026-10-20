@@ -1,8 +1,9 @@
 // "What if you build it yourself?" inputs: build steps, interventions, and rates.
 //
-// Build steps 1-11 come from the Flo SMS cost model (Rob Martin, October 2026):
+// Build steps come from the Flo SMS cost model (Rob Martin, October 2026):
 // one-time cost, monthly cost, per-segment usage, and year-1 hours are copied
-// from its Build-buy tab. Calendar weeks, dependencies, and "if skipped"
+// from its Build-buy tab. The HIPAA program row is left out: most aggregators
+// selling into ACOs already run one. Calendar weeks, dependencies, and "if skipped"
 // effects are author assumptions; the cost model does not include them.
 // Steps marked `added: true` are not in the cost model.
 
@@ -94,12 +95,6 @@ export const STEPS = [
     detail: 'Hours scale with replies x escalation rate x 4 minutes. Weeks assume hiring or reassigning RNs plus training. $1,500 training.',
   },
   {
-    id: 'adt', added: true, label: 'Hospital discharge (ADT) feed',
-    owner: 'Engineering', oneTime: 10000, monthly: 0, perSegment: 0, engHours: 120, runHours: 40, weeks: 10, after: ['supporting'],
-    skip: { blocks: ['toc'], why: 'You do not know who was discharged, so post-discharge texts cannot start within 48 hours.' },
-    detail: 'Interface with hospitals or an HIE for admit/discharge events. Assumption: $10k interface fees, 120 hours, 10 weeks of partner scheduling.',
-  },
-  {
     id: 'monitoring', label: 'Traffic monitoring and compliance audit logs (CloudWatch, CloudTrail)',
     owner: 'Engineering', oneTime: 0, monthly: 55, perSegment: 0.00001, engHours: 120, buildHours: 40, runHours: 120, weeks: 0, after: ['aws'],
     skip: { weakens: { factor: 0.9, applies: 'all' }, why: 'Delivery failures go unnoticed, and there is no HIPAA audit trail.' },
@@ -110,12 +105,6 @@ export const STEPS = [
     owner: 'Vendor', oneTime: 0, monthly: 416.7, perSegment: 0, engHours: 52, runHours: 52, weeks: 1, after: ['number'],
     skip: { weakens: { factor: 0.85, applies: 'all' }, why: 'Carrier spam filtering silently drops messages.' },
     detail: '$416.70/mo (~$5,000/yr). 1 hr/week review.',
-  },
-  {
-    id: 'hipaa', label: 'HIPAA program: risk assessment, policies, penetration test',
-    owner: 'Compliance', oneTime: 20000, monthly: 0, perSegment: 0, engHours: 40, runHours: 40, weeks: 3, notBefore: 8, after: ['bot', 'inbox'],
-    skip: { blocks: 'all', why: 'Cannot go live handling PHI without a risk assessment and tested controls.' },
-    detail: '$10k-$30k; midpoint used. Policies run in parallel (8 weeks); the penetration test needs the built system.',
   },
 ];
 

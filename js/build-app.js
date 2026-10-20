@@ -209,7 +209,7 @@ function renderMoney(r) {
   const items = [
     ['Engineering', y.engineering, `${fmt(r.cost.engHoursY1, 'number0')} hrs × ${fmt(Number(state.values.engRate), 'currency0')}`],
     ['Nurse triage', y.nurses, `${fmt(r.cost.nurseFte, 'number1')} FTE once live`],
-    ['One-time (fees, HIPAA program, interfaces, protocol review)', y.oneTime, ''],
+    ['One-time (registration fees, nurse training, protocol review)', y.oneTime, ''],
     ['Platform and monitoring', y.platform, `${fmt(r.cost.platformMonthly, 'currency0')}/mo once live`],
     ['AWS texting', y.messaging, `${fmt(r.cost.messagingMonthly, 'currency0')}/mo once live`],
   ].sort((a, b) => b[1] - a[1]);

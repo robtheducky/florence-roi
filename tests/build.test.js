@@ -31,7 +31,7 @@ test('nothing skipped: everything running runs fully', () => {
 });
 
 test('skipping a blocks-all step blocks everything and launch never happens', () => {
-  const r = buildCase(values, [aco], new Set(['hipaa']), run, opts);
+  const r = buildCase(values, [aco], new Set(['campaign']), run, opts);
   assert.equal(r.launchWeek, null);
   assert.equal(r.value.builtYear1, 0);
   assert.equal(r.volume.outbound, 0);
@@ -56,7 +56,7 @@ test('more engineers shorten the build', () => {
   const one = schedule(new Set(), run, 1).launchWeek;
   const two = schedule(new Set(), run, 2).launchWeek;
   assert.ok(two < one);
-  assert.ok(two >= 8, 'clinical sign-off and HIPAA floor still apply');
+  assert.ok(two >= 8, 'clinical sign-off still applies');
 });
 
 test('AWS texting cost matches the cost model rates', () => {
@@ -65,10 +65,4 @@ test('AWS texting cost matches the cost model rates', () => {
   const segIn = r.volume.inbound * 1.3;
   const other = (0.000002 + 0.0000006 + 0.00001) * (segOut + segIn);
   near(r.cost.messagingMonthly, segOut * 0.00917 + segIn * 0.0058 + other, 1e-6);
-});
-
-test('ADT feed only matters for post-discharge follow-up', () => {
-  const noToc = new Set(['meds', 'hf']);
-  const a = schedule(new Set(), noToc, 1);
-  assert.ok(!a.rows.some((r) => r.id === 'adt'));
 });

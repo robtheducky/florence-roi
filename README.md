@@ -16,7 +16,7 @@ The five effect assumptions (engagement, adherence odds ratio, savings realized,
 
 Linked from the estimator header and sized to the same ACO selection. It turns the Flo SMS cost model (AWS End User Messaging rates, 10DLC fees, monitoring, engineering and nurse hours) into four answers: the week the first text reaches a patient, year-1 cost, people needed, and shared savings revenue lost against a vendor.
 
-- **Build steps** (11 from the cost model, 3 added: clinical protocols, consent/opt-in, hospital discharge feed) can each be switched off. Skipping a step saves its time and cost but **blocks** or **weakens** specific programs.
+- **Build steps** (10 from the cost model, leaving out the HIPAA program most aggregators already run; 2 added: clinical protocols, consent/opt-in) can each be switched off. Skipping a step saves its time and cost but **blocks** or **weakens** specific programs.
 - **Programs** are based on what Generated Health describes for Florence: medication reminders (including COPD), home blood pressure readings, heart failure daily weight, COPD check-ins, and 30-day post-discharge follow-up. Volume = assigned beneficiaries (CMS) x prevalence x enrollment share x texts per patient.
 - Calendar weeks, dependencies, skip effects, and texts per patient are author assumptions; the cost model gives costs and hours only.
 

@@ -26,7 +26,6 @@ export function interventionStatus(skipped, running) {
     const weakenedBy = [];
     for (const s of STEPS) {
       if (!skipped.has(s.id)) continue;
-      // The discharge feed only matters to post-discharge follow-up.
       const { blocks, weakens } = s.skip;
       if (blocks === 'all' || blocks?.includes(iv.id)) blockedBy.push(s.id);
       else if (weakens && (weakens.applies === 'all' || weakens.applies.includes(iv.id))) {
@@ -43,7 +42,6 @@ export function interventionStatus(skipped, running) {
 // Steps that matter for the interventions being run.
 export function relevantSteps(running) {
   return STEPS.filter((s) => {
-    if (s.id === 'adt') return running.has('toc');
     if (s.id === 'nurses' || s.id === 'inbox') return [...running].some((id) => INTERVENTIONS.find((i) => i.id === id).escalation > 0);
     return true;
   });
