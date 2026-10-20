@@ -1,0 +1,32 @@
+{
+  "cbp": {
+    "id": "C14",
+    "weight": 3.0,
+    "source": "2027-tech-notes.pdf, Measure: C14, Weighting Value"
+  },
+  "spc": {
+    "id": "C18",
+    "weight": 1.0,
+    "source": "2027-tech-notes.pdf, Measure: C18, Weighting Value"
+  },
+  "dm": {
+    "id": "D08",
+    "weight": 3.0,
+    "source": "2027-tech-notes.pdf, Measure: D08, Weighting Value"
+  },
+  "ras": {
+    "id": "D09",
+    "weight": 3.0,
+    "source": "2027-tech-notes.pdf, Measure: D09, Weighting Value"
+  },
+  "statin": {
+    "id": "D10",
+    "weight": 3.0,
+    "source": "2027-tech-notes.pdf, Measure: D10, Weighting Value"
+  },
+  "supd": {
+    "id": "D11",
+    "weight": 1.0,
+    "source": "2027-tech-notes.pdf, Measure: D11, Weighting Value"
+  }
+}
