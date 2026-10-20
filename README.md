@@ -1,8 +1,20 @@
-# SMS care program ROI estimator (independent prototype)
+# Two-way SMS care for Medicare ACOs: pilot and scale estimator (independent prototype)
 
-A standalone estimator for the financial impact of automated, protocol-driven two-way SMS for chronic care (medication adherence) and transitions of care (readmissions). A prospective buyer enters their numbers and gets an estimate under three scenarios: Conservative, Base, and Vendor-reported. Every parameter links to a cited source or is labeled as an assumption.
+A single-screen dashboard for a Medicare Shared Savings Program (MSSP) ACO considering an automated two-way SMS program for medication adherence and transitions of care.
+
+1. **What CMS data shows.** Pick any MSSP ACO. Its PY2024 results (lives under management, benchmark, savings rate vs. MSR, sharing rate, readmission rate, admissions, cost per admission, quality) load from the CMS public use files and become the baseline. Every value shows its PUF column.
+2. **The bet: pilot.** What a pilot of a given size should deliver, the success metrics with targets, and whether the pilot is large enough to prove each one statistically.
+3. **The bet: at scale.** Gross Medicare Parts A and B savings, what the ACO keeps after MSSP sharing, ACO net of program cost, and the break-even point expressed as a share of the bet. That break-even share is the scale-up threshold for the pilot.
+
+Three scenarios (Conservative, Base, Vendor-reported) switch every effect assumption at once. Every parameter links to a cited source or is labeled as an assumption.
 
 > Independent prototype by Rob Martin. Not affiliated with or endorsed by Generated Health. Estimates are illustrative.
+
+## What the public data can and cannot do
+
+- Lives under management are published **per ACO only**. CMS does not publish participant TINs or assignment by TIN; the participant file lists legal business names. TIN-level views need the ACO's own CMS assignment reports or claims line feed.
+- Condition prevalence is not in the MSSP files. The dashboard uses approximate national Medicare FFS prevalence (flagged "Needs validation") unless the ACO enters its own registry counts.
+- 122 ACOs in the 2026 program joined after PY2024 and have no results yet. They load with MSSP medians.
 
 ## Run locally
 
@@ -19,6 +31,15 @@ Run the tests (Node 18+):
 node --test
 ```
 
+Refresh the CMS data (downloads into `data-raw/`, which is git-ignored, and writes `data/*.json`):
+
+```sh
+node scripts/build-aco-data.js            # uses cached CSVs if present
+node scripts/build-aco-data.js --refresh  # re-download
+```
+
+When CMS publishes PY2025 results, update the URLs in `scripts/build-aco-data.js` and rerun.
+
 Regenerate `docs/ASSUMPTIONS.md` after editing `js/assumptions.js`:
 
 ```sh
@@ -30,24 +51,24 @@ node scripts/build-assumptions-doc.js
 ```
 index.html
 css/styles.css             includes the print stylesheet
-js/assumptions.js          single source of truth for every parameter
-js/model/core.js           pure model functions, no DOM
+data/acos.json             598 ACOs: PY2024 results joined to the 2026 ACO list, plus MSSP medians
+data/participants.json     2026 participant legal business names by ACO
+js/assumptions.js          single source of truth for every literature and author assumption
+js/model/core.js           pure functions: adherence and readmission model, MSSP settlement, sample size, solver
+js/model/aco.js            dashboard inputs, CMS-grounded defaults, pilot / scale / pass-through compute
 js/format.js               number formatting
-js/modules/index.js        module registry (plus roadmap stubs)
-js/modules/population.js   Phase 1 module
-js/app.js                  generic UI, URL state
+js/app.js                  UI and URL state
 js/config.js               author name, roadmap link
+scripts/build-aco-data.js  CMS CSV to JSON
 tests/model.test.js
 docs/ROADMAP.md
 docs/ASSUMPTIONS.md
 ```
 
-Each buyer module exports `{ id, label, assumptionIds, groups, inputs, compute(values, scenarioId) }`. The UI renders any module's inputs and outputs, so adding the Medicare Advantage module means adding one file and changing one registry line.
-
 ## Sharing and printing
 
-- All inputs and the scenario are kept in the URL query string. Use **Copy link** to share a pre-filled estimate. Only non-default values are written, so links stay short.
-- **Print** produces a one-page leave-behind (US Letter) with the inputs used, results, and sources.
+- The selected ACO, scenario, and every edited input are kept in the URL (for example `?aco=A1001&scenario=conservative`). Use **Copy link** to share a pre-filled estimate.
+- **Print** produces a one-page leave-behind (US Letter): CMS baseline, pilot scorecard, scale results, and caveats.
 
 ## Deploy to GitHub Pages
 
@@ -62,4 +83,4 @@ After the repo exists, set `ROADMAP_URL` in `js/config.js` to `https://github.co
 
 ## Disclaimer
 
-Program prices are placeholders, not Generated Health pricing. Values marked "Needs validation" come from vendor-reported figures or author assumptions and must be validated before external use. Literature savings are from an observational study in 2011 dollars. Patients with heart failure may appear in both the chronic and transitions-of-care populations, so estimates may double-count if those populations overlap.
+Program prices are placeholders, not Generated Health pricing. Values marked "Needs validation" come from vendor-reported figures or author assumptions and must be validated before external use. Literature savings are from an observational study in 2011 dollars. The MSSP pass-through is simplified (no payment or loss caps, MLR assumed equal to MSR, PY2024 terms, no rebasing). Patients with multiple conditions are counted once per condition at scale.

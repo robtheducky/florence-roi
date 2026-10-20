@@ -1,6 +1,15 @@
 # Roadmap
 
-Phase 1 (Core population) is built. Everything below is planned, not built. Each phase becomes one file in `js/modules/` plus one line in `js/modules/index.js`, reusing the same input, compute, and output contract.
+Built: core adherence and transitions-of-care model, and the **Medicare ACO (MSSP)** dashboard: CMS PY2024 baseline per ACO, pilot scorecard with statistical power, scale projection, MSSP pass-through, and break-even as a share of the bet. Everything below is planned, not built.
+
+## 0. Next for the ACO dashboard
+
+- **ACO's own data upload (TIN level).** CMS publishes no TINs and no assignment by TIN. Let an ACO drop in its Assignment Summary or CCLF-derived counts (assigned beneficiaries by TIN, registry counts of unique patients with hypertension, diabetes, heart failure) in the browser, never uploaded to a server. This replaces national prevalence and fixes multi-condition double counting.
+- **Unique-patient cohort.** Count each patient once with a condition mix, and charge PMPM once per patient.
+- **Full MSSP reconciliation.** Performance payment and loss caps, MLR choice, prior savings adjustment, regional adjustment, and benchmark rebasing across the agreement period. **Verify against the current year's CMS documentation.**
+- **PY2025 results** when CMS publishes them; show year-over-year trend per ACO.
+- **ACO REACH.** CMS publishes REACH financial and quality results and participant lists; add as a second data source with REACH's own discount and risk corridors. **Verify against the current year's CMS documentation.**
+- **Pilot design helper.** Solve for the pilot size that makes each success metric provable, and for a matched comparison group from the ACO's non-enrolled patients.
 
 Rule for every phase: anything that depends on CMS rules that change each year is marked **verify against the current year's CMS documentation**. No measure IDs, weights, cut points, or rates are hardcoded from memory.
 
@@ -37,30 +46,7 @@ Rule for every phase: anything that depends on CMS rules that change each year i
 
 ## 2. ACO (MSSP / ACO REACH)
 
-**Buyer's question.** Of the gross savings, how much does the ACO actually keep?
-
-**New inputs**
-- Program and track (MSSP BASIC levels, ENHANCED; ACO REACH Professional or Global)
-- Assigned or aligned beneficiaries and benchmark expenditure
-- Shared savings rate for the track. **Verify against the current year's CMS documentation.**
-- Minimum savings rate (MSR). **Verify against the current year's CMS documentation.**
-- Quality performance standard status, including Controlling High Blood Pressure and Diabetes: Hemoglobin A1c Poor Control. **Verify measure set against the current year's CMS documentation.**
-
-**Calculation**
-- Apply Phase 1 gross savings to the attributed population
-- Compare total savings against benchmark and MSR
-- Shared savings = savings above threshold times the sharing rate, scaled by quality score
-- Show the incremental dollars the program contributes to clearing the MSR
-
-**Public data for presets**
-- MSSP ACO performance-year Public Use File
-- ACO REACH participant lists and financial results
-- MSSP and REACH financial methodology documents
-
-**Open questions**
-- Benchmark rebasing effects in later agreement periods
-- How to treat savings that accrue to beneficiaries who leave attribution
-- REACH discount and risk corridor treatment. **Verify against the current year's CMS documentation.**
+Built for MSSP. See section 0 for what remains, including REACH.
 
 ## 3. Commercial / self-insured
 
@@ -134,7 +120,7 @@ Rule for every phase: anything that depends on CMS rules that change each year i
 
 **Buyer's question.** Can you pre-fill this for us?
 
-**What it does.** Pick a real MA contract, ACO, or hospital and auto-fill inputs from public files. Doubles as a prospect-targeting tool (rank organizations by dollars at stake).
+**What it does.** Built for MSSP ACOs. Extend to MA contracts and hospitals. Add a ranked prospect view: ACOs where program savings would close the gap to the MSR, or where readmission rates and cost per admission are above the MSSP median.
 
 **Build notes**
 - Preprocess public files into small static JSON (no runtime fetch from CMS)
