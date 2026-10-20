@@ -2,7 +2,7 @@
 // Usage: node scripts/build-assumptions-doc.js
 
 import { writeFileSync } from 'node:fs';
-import { ASSUMPTIONS, SOURCES } from '../js/assumptions.js';
+import { ASSUMPTIONS, SOURCES, MA_ASSUMPTIONS } from '../js/assumptions.js';
 import { fmt } from '../js/format.js';
 
 const cell = (s) => String(s).replace(/\|/g, '\\|');
@@ -30,6 +30,8 @@ const fixedRows = Object.entries(ASSUMPTIONS)
     `| ${cell(a.label)} \`${id}\` | ${fmt(a.value, a.format)} | ${cell(a.unit)} | ${a.sources.map(sourceLink).join('; ')} | ${cell(a.note)} | ${flags(a)} |`,
   );
 
+const maRows = Object.entries(MA_ASSUMPTIONS).map(([id, a]) => `| ${cell(a.label)} \`${id}\` | ${fmt(a.value, a.format)} | ${cell(a.note)} | **VERIFY** |`);
+
 const sources = Object.values(SOURCES).map((s) => `- **${s.short}.** ${s.full}${s.url ? ` <${s.url}>` : ''}`);
 
 const md = `# Assumptions and sources
@@ -56,6 +58,14 @@ ${fixedRows.join('\n')}
 ## Client inputs without a source
 
 ACO baseline values (assigned beneficiaries, admissions, readmission rate, cost per admission, benchmark, savings rate, MSR, sharing and loss rates) come from the CMS MSSP PY2024 results file per ACO, or MSSP medians when no ACO is selected. Baseline adherence (60%) and pilot sizes are illustrative defaults; replace them with the prospect's own numbers.
+
+## MA Opportunity Finder (\`ma-opportunities.html\`)
+
+Rates, measure stars, cut points, weights, overall ratings, disaster percentages, and enrollment come from CMS files (see \`data/ma_opportunities.json\` meta). These are the only assumptions, all editable on the page:
+
+| Assumption | Default | Note | Flag |
+|---|---:|---|---|
+${maRows.join('\n')}
 
 ## Sources
 

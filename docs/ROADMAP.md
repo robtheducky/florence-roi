@@ -17,6 +17,19 @@ Built: core adherence and transitions-of-care model, and the **Medicare ACO (MSS
 
 Rule for every phase: anything that depends on CMS rules that change each year is marked **verify against the current year's CMS documentation**. No measure IDs, weights, cut points, or rates are hardcoded from memory.
 
+## 0b. MA Opportunity Finder: next
+
+Built: 2027 Star Ratings tiering on adherence, blood pressure control, and statin measures with enrollment, cut-point detail, calculator hand-off, and CSV export. Next:
+
+- **ACO equivalent:** MSSP performance-year PUF filtered on quality measures (Controlling High Blood Pressure, HbA1c poor control) and savings rate vs. MSR.
+- **Hospital equivalent:** HRRP penalties for heart failure and COPD from the HRRP supplemental files.
+- **Reconstructed overall rating:** simulate the weighted average with the reward factor and CAI, so a measure gain maps to the overall star it would produce. **Verify against the current year's Technical Notes.**
+- **Multi-year trend:** flag measures that declined two or more years in a row (prior years' data tables).
+- **State and county footprint:** from CMS MA enrollment by contract/plan/state/county files.
+- **D-SNP split:** separate dual-eligible SNPs using the SNP comprehensive report, to size the dual opportunity.
+- **CRM export fields:** parent organization, contract, tier, measures near a cut, bonus at stake, and a link back to the detail view.
+- **Real benchmarks:** replace the assumed benchmark PMPM with each contract's service-area benchmark from the CMS ratebook.
+
 ## 1. Medicare Advantage
 
 **Buyer's question.** If adherence and blood pressure control improve, how close do we get to the next Star Rating cut point, and what is that worth in quality bonus payments and rebates?

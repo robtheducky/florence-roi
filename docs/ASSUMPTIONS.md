@@ -38,6 +38,21 @@ The dashboard draws each of these from its distribution 2,000 times (seeded, so 
 
 ACO baseline values (assigned beneficiaries, admissions, readmission rate, cost per admission, benchmark, savings rate, MSR, sharing and loss rates) come from the CMS MSSP PY2024 results file per ACO, or MSSP medians when no ACO is selected. Baseline adherence (60%) and pilot sizes are illustrative defaults; replace them with the prospect's own numbers.
 
+## MA Opportunity Finder (`ma-opportunities.html`)
+
+Rates, measure stars, cut points, weights, overall ratings, disaster percentages, and enrollment come from CMS files (see `data/ma_opportunities.json` meta). These are the only assumptions, all editable on the page:
+
+| Assumption | Default | Note | Flag |
+|---|---:|---|---|
+| MA benchmark, per member per month `benchmarkPMPM` | $1,200 | Order-of-magnitude county benchmark. Real benchmarks vary by county and by the plan’s service area; take them from the CMS ratebook. | **VERIFY** |
+| Quality bonus at 4 stars or more `qbpPct` | 5% | Bonus added to the benchmark for contracts rated 4 stars or higher (10% in some counties). Ignores rebate-percentage changes. Verify against the current rate announcement. | **VERIFY** |
+| Members in the diabetes medication measure `shareDm` | 25% | Share of enrollment in the D08 denominator. True denominators are not public. | **VERIFY** |
+| Members in the hypertension (RAS) medication measure `shareRas` | 40% | Share of enrollment in the D09 denominator. True denominators are not public. | **VERIFY** |
+| Members in the statin adherence measure `shareStatin` | 45% | Share of enrollment in the D10 denominator. True denominators are not public. | **VERIFY** |
+| Members in Controlling Blood Pressure `shareCbp` | 50% | Share of enrollment with a hypertension diagnosis in the HEDIS denominator. True denominators are not public. | **VERIFY** |
+| Members in Statin Therapy for Cardiovascular Disease `shareSpc` | 12% | Share of enrollment in the C18 denominator. True denominators are not public. | **VERIFY** |
+| Members in Statin Use in Persons with Diabetes `shareSupd` | 20% | Share of enrollment in the D11 denominator. True denominators are not public. | **VERIFY** |
+
 ## Sources
 
 - **Thakkar et al., JAMA Intern Med 2016.** Thakkar J, et al. Mobile telephone text messaging for medication adherence in chronic disease: a meta-analysis. JAMA Intern Med. 2016;176(3):340-349. <https://doi.org/10.1001/jamainternmed.2015.7667>

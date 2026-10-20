@@ -21,6 +21,25 @@ Linked from the estimator header and sized to the same ACO selection. It turns t
 - **How long until you know it works.** For adherence and readmissions: patients needed per group, enrollment per month at the ACO's real volume, months of continuous enrollment, the measurement window, and claims lag. Weaker delivery dilutes the effect, so it raises the number needed. A single median ACO needs years to show a readmission effect; pooling ACOs (an aggregator) gets there in months. The estimator's pilot table shows the same months-to-an-answer at full scale.
 - Calendar weeks, dependencies, skip effects, texts per patient, enrollment ramp, PDC window, and claims lag are author assumptions; the cost model gives costs and hours only.
 
+## MA Opportunity Finder (`ma-opportunities.html`)
+
+Medicare Advantage contracts just below or just above a Star Ratings cut point on the measures Florence can move: medication adherence (diabetes, RAS antagonists, statins), Controlling Blood Pressure, and the two statin-use measures. Linked from the estimator header.
+
+- **Tier 1, bonus cliff:** 3.5 stars overall and a target measure within the gap threshold of the next star.
+- **Tier 2, defend the bonus:** 4.0 stars and a target measure within the threshold of dropping a star.
+- **Tier 3, measure lift:** any other plan with a target measure within the threshold.
+
+Filters (threshold slider, tier, overall stars, measure, minimum enrollment, SNP only, search) update instantly; columns sort; a row opens each measure against the cut points; **Model in calculator** opens the estimator with the plan's enrollment and its own adherence as a single payer that keeps 100% of savings; **Export CSV** saves the filtered view.
+
+Refresh the data (Python standard library only; `pdftotext` from poppler is used for measure weights when available, otherwise the committed `data/ma_measure_weights.json`):
+
+```sh
+python3 scripts/fetch_data.py && python3 scripts/build_ma_opportunities.py
+node scripts/stamp-versions.js
+```
+
+`python3 scripts/build_ma_opportunities.py --inspect` prints the file list and header rows.
+
 ## What the public data can and cannot do
 
 - Lives under management are published **per ACO only**. CMS does not publish participant TINs or assignment by TIN; the participant file lists legal business names. TIN-level views need the ACO's own CMS assignment reports or claims line feed.
@@ -82,11 +101,17 @@ js/build/data.js           build steps (from the cost model), programs, AWS rate
 js/model/build.js          build schedule, volume, cost, skip effects, value at stake
 js/model/study.js          patients and months of continuous enrollment needed to measure each outcome
 js/build-app.js            build page UI
+js/model/ma.js             MA tiering, members to move, bonus at stake
+js/ma-app.js               MA Opportunity Finder UI
+ma-opportunities.html      MA Opportunity Finder page
+data/ma_opportunities.json MA contracts with rates, stars, gaps, cushions, enrollment (built by scripts/build_ma_opportunities.py)
+scripts/fetch_data.py      downloads CMS Star Ratings, Technical Notes, fact sheet, enrollment into data/raw/
 build.html                 "What if you build it yourself?" page
 js/config.js               author name, roadmap link
 scripts/build-aco-data.js  CMS CSV to JSON
 tests/model.test.js
 tests/build.test.js
+tests/ma.test.js           uses tests/fixtures/ma_fixture.json
 docs/ROADMAP.md
 docs/ASSUMPTIONS.md
 ```
