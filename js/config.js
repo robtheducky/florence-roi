@@ -3,4 +3,4 @@
 // 'https://github.com/<user>/<repo>/blob/main/docs/ROADMAP.md', so anchors work.
 
 export const AUTHOR = 'Rob Martin';
-export const ROADMAP_URL = 'docs/ROADMAP.md';
+export const ROADMAP_URL = 'https://github.com/robtheducky/florence-roi/blob/main/docs/ROADMAP.md';
