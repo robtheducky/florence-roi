@@ -2,6 +2,7 @@
 
 import { INPUTS, acoDefaults } from './model/aco.js';
 import { buildCase, relevantSteps } from './model/build.js';
+import { STUDY, STUDY_NOTES } from './model/study.js';
 import { STEPS, INTERVENTIONS, RATES, LABOR, COST_MODEL, PREV_COPD, VENDOR_WEEKS } from './build/data.js';
 import { fmt } from './format.js';
 import { AUTHOR } from './config.js';
@@ -229,11 +230,43 @@ function renderMoney(r) {
     </tbody>`;
 }
 
+const WPM = 52 / 12;
+const monthsOrNever = (m) => (m === null ? 'Never' : `${fmt(m, 'number1')} mo`);
+
+function renderStudy(r) {
+  const vendorRows = Object.fromEntries(r.study.vendor.map((x) => [x.id, x]));
+  const answerAt = (startWeeks, row) => (startWeeks === null || row.totalMonths === null ? 'Never' : `Month ${fmt(startWeeks / WPM + row.totalMonths, 'number0')}`);
+  const tipNeeded = 'Patients per group (program and comparison) to detect the targeted change with 95% confidence and 80% power. Weakened delivery shrinks the effect, so more patients are needed.';
+  const tipEnroll = `Chronic patients: the enrolled panel at scale, brought on over ${STUDY.rampMonths} months. Discharges: enrolled discharges per month. Both scale with how many patients your build actually reaches.`;
+  const tipConc = 'Patients who must be in active, uninterrupted intervention at the same time. A gap in service or patients going quiet dilutes the effect and resets the clock.';
+  $('study').innerHTML = `<thead><tr>
+      <th scope="col">Outcome</th>
+      <th scope="col" class="num">Per group ${info(tipNeeded, 'About patients per group')}</th>
+      <th scope="col" class="num">Enrolled / mo ${info(tipEnroll, 'About enrolled per month')}</th>
+      <th scope="col" class="num">Months enrolling</th>
+      <th scope="col" class="num">Active at once ${info(tipConc, 'About patients active at once')}</th>
+      <th scope="col" class="num">Measure + lag ${info(`${esc(STUDY_NOTES.pdcWindowMonths)}<br>${esc(STUDY_NOTES.readmitWindowMonths)}<br>${esc(STUDY_NOTES.claimsLagMonths)}`, 'About measurement and lag')}</th>
+      <th scope="col" class="num">First answer: build / vendor</th></tr></thead>
+    <tbody>${r.study.built.map((x) => {
+      const v = vendorRows[x.id];
+      const can = x.totalMonths !== null;
+      return `<tr class="${can ? '' : 'is-never'}">
+        <th scope="row">${esc(x.label)}<div class="row-sub">${esc(x.measure)}</div></th>
+        <td class="num">${x.perGroup === null ? '<span class="muted">n/a</span>' : esc(fmt(x.perGroup, 'number0'))}</td>
+        <td class="num">${esc(fmt(x.perMonth, 'number0'))}</td>
+        <td class="num strong">${esc(monthsOrNever(x.accrualMonths))}</td>
+        <td class="num">${x.concurrent === null ? '<span class="muted">n/a</span>' : esc(fmt(x.concurrent, 'number0'))}</td>
+        <td class="num">${esc(fmt(x.windowMonths + x.lagMonths, 'number0'))} mo</td>
+        <td class="num strong">${esc(answerAt(r.launchWeek, x))} <span class="muted">/ ${esc(answerAt(r.vendorWeeks, v))}</span></td></tr>`;
+    }).join('')}</tbody>`;
+}
+
 function renderAll() {
   const r = buildCase(state.values, state.acos, state.skipped, state.running, { medians: state.data.medians });
   renderForLine();
   renderHeadline(r);
   renderInterventions(r);
+  renderStudy(r);
   renderSteps(r);
   renderTimeline(r);
   renderMoney(r);

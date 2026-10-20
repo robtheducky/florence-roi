@@ -66,3 +66,27 @@ test('AWS texting cost matches the cost model rates', () => {
   const other = (0.000002 + 0.0000006 + 0.00001) * (segOut + segIn);
   near(r.cost.messagingMonthly, segOut * 0.00917 + segIn * 0.0058 + other, 1e-6);
 });
+
+test('study plan: weaker delivery needs more patients and takes longer', () => {
+  const full = buildCase(values, [aco], new Set(), run, opts).study.built;
+  const weak = buildCase(values, [aco], new Set(['monitoring', 'reputation']), run, opts).study.built;
+  for (const id of ['adherence', 'readmit']) {
+    const f = full.find((x) => x.id === id);
+    const w = weak.find((x) => x.id === id);
+    assert.ok(w.perGroup > f.perGroup, id);
+    assert.ok(w.totalMonths > f.totalMonths, id);
+  }
+});
+
+test('study plan: blocked programs never produce an answer', () => {
+  const r = buildCase(values, [aco], new Set(['bot']), run, opts);
+  assert.equal(r.study.built.find((x) => x.id === 'readmit').totalMonths, null);
+});
+
+test('study plan: pooling ACOs shortens the readmission answer', () => {
+  const small = data.acos.filter((a) => a.hasResults && a.lum < 15000).slice(0, 20);
+  const one = buildCase({ ...acoDefaults(small[0], data.medians).values, ...values, ...acoDefaults(small[0], data.medians).values }, [small[0]], new Set(), run, opts);
+  const pooled = buildCase(values, small, new Set(), run, opts);
+  const m = (r) => r.study.built.find((x) => x.id === 'readmit').totalMonths;
+  assert.ok(m(pooled) < m(one) / 5);
+});

@@ -5,6 +5,7 @@ import { INPUTS, GROUPS, ASSUMPTION_IDS, DRAWS, acoDefaults, compute } from './m
 import { fmt } from './format.js';
 import { AUTHOR, ROADMAP_URL } from './config.js';
 import { $, esc, info, tag, verifyTag, citation, statCard, range } from './ui.js';
+import { studyPlan, STUDY } from './model/study.js';
 
 const BASELINE_IDS = new Set(INPUTS.filter((i) => i.group === 'aco').map((i) => i.id));
 const MAX_OPTIONS = 80;
@@ -351,12 +352,14 @@ function renderPilot(r) {
   ].join('');
 
   const cell = (v, f) => (v === null ? '<span class="muted">n/a</span>' : esc(fmt(v, f)));
+  const study = Object.fromEntries(studyPlan(r).map((x) => [x.id, x]));
   const readmitKnown = isMulti() || state.origin.baselineReadmit === 'cms';
   const nowTag = { adherence: state.values.targeting === 'gap' ? tag('assumption') : tag('cms'), readmit: readmitKnown ? tag('cms') : tag('median') };
   $('scorecard').innerHTML = `<thead><tr>
       <th scope="col">Measure</th><th scope="col" class="num">Now</th><th scope="col" class="num">Target</th>
       <th scope="col" class="num">Needed per group ${info('Patients per group (program and comparison) to detect the target with 95% confidence and 80% power. Two-proportion z-test.', 'About needed per group')}</th>
       <th scope="col" class="num">Pilot has</th>
+      <th scope="col" class="num">At full scale: months to an answer ${info(`Months of continuous enrollment at the ACO\u2019s full-scale volume, plus the measurement window and about ${STUDY.claimsLagMonths} months of claims lag. Assumes delivery never lapses.`, 'About months to an answer')}</th>
       <th scope="col">Provable in pilot? ${info('<strong>Yes:</strong> pilot is large enough to show the effect.<br><strong>No:</strong> too small; treat as directional.<br><strong>Counted:</strong> measured directly, no comparison needed.', 'About provable')}</th></tr></thead>
     <tbody>${r.scorecard.map((row) => `<tr>
       <th scope="row">${esc(row.metric)}<div class="row-sub">${esc(row.measure)}</div></th>
@@ -364,6 +367,7 @@ function renderPilot(r) {
       <td class="num strong">${cell(row.target, row.format)}</td>
       <td class="num">${row.required === null ? '<span class="muted">n/a</span>' : esc(fmt(row.required, 'number0'))}</td>
       <td class="num">${esc(fmt(row.have, 'number0'))}</td>
+      <td class="num">${study[row.id] ? (study[row.id].totalMonths === null ? 'Never' : esc(fmt(study[row.id].totalMonths, 'number0'))) : '<span class="muted">n/a</span>'}</td>
       <td>${row.provable === null ? '<span class="pill pill-direct">Counted</span>' : row.provable ? '<span class="pill pill-yes">Yes</span>' : '<span class="pill pill-no">No</span>'}</td>
     </tr>`).join('')}</tbody>`;
 }

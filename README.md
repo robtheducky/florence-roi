@@ -18,7 +18,8 @@ Linked from the estimator header and sized to the same ACO selection. It turns t
 
 - **Build steps** (10 from the cost model, leaving out the HIPAA program most aggregators already run; 2 added: clinical protocols, consent/opt-in) can each be switched off. Skipping a step saves its time and cost but **blocks** or **weakens** specific programs.
 - **Programs** are based on what Generated Health describes for Florence: medication reminders (including COPD), home blood pressure readings, heart failure daily weight, COPD check-ins, and 30-day post-discharge follow-up. Volume = assigned beneficiaries (CMS) x prevalence x enrollment share x texts per patient.
-- Calendar weeks, dependencies, skip effects, and texts per patient are author assumptions; the cost model gives costs and hours only.
+- **How long until you know it works.** For adherence and readmissions: patients needed per group, enrollment per month at the ACO's real volume, months of continuous enrollment, the measurement window, and claims lag. Weaker delivery dilutes the effect, so it raises the number needed. A single median ACO needs years to show a readmission effect; pooling ACOs (an aggregator) gets there in months. The estimator's pilot table shows the same months-to-an-answer at full scale.
+- Calendar weeks, dependencies, skip effects, texts per patient, enrollment ramp, PDC window, and claims lag are author assumptions; the cost model gives costs and hours only.
 
 ## What the public data can and cannot do
 
@@ -78,6 +79,7 @@ js/app.js                  estimator UI and URL state
 js/ui.js                   shared tags, tooltips, cards
 js/build/data.js           build steps (from the cost model), programs, AWS rates
 js/model/build.js          build schedule, volume, cost, skip effects, value at stake
+js/model/study.js          patients and months of continuous enrollment needed to measure each outcome
 js/build-app.js            build page UI
 build.html                 "What if you build it yourself?" page
 js/config.js               author name, roadmap link

@@ -194,6 +194,11 @@ h1 { margin: 0; font-size: 24px; line-height: 1.2; }
 
 /* ---------- build page ---------- */
 
+.study-card { margin-top: 20px; }
+.study { min-width: 760px; }
+.study tbody th { min-width: 210px; }
+.study tr.is-never td.strong { color: var(--neg); }
+
 .btn-accent { background: var(--accent); color: #fff; text-decoration: none; display: inline-flex; align-items: center; }
 .btn-accent:hover { background: #095c66; }
 a.btn { text-decoration: none; display: inline-flex; align-items: center; }
@@ -312,6 +317,8 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; }
   .iv-nums { font-size: 7.5px; }
   .build-layout { grid-template-columns: 1fr 1fr; gap: 6px; padding: 4px 0; }
   .build-controls { display: none; }
+  .study-card { margin-top: 4px; }
+  .study { min-width: 0; }
   .step { padding: 2px 0 2px 6px; }
   .step-meta { display: none; }
   .step:not(.is-skipped) .step-impact { display: none; }

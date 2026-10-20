@@ -8,6 +8,7 @@
 import { STEPS, INTERVENTIONS, RATES, LABOR, PREV_COPD } from '../build/data.js';
 import { compute, settlementUnits } from './aco.js';
 import { nonNeg } from './core.js';
+import { studyPlan } from './study.js';
 
 const WEEKS_PER_MONTH = 52 / 12;
 const isEngineeringBuild = (s) => s.weeks === 0 && (s.buildHours ?? s.engHours) > 0;
@@ -175,14 +176,22 @@ export function buildCase(values, acos, skipped, running, { medians = {} } = {})
   // Shared savings via the ROI model: adherence savings come from medication
   // reminders, readmission savings from post-discharge follow-up. Other
   // interventions carry cost but no modeled savings.
-  const share = (reachMeds, reachToc) => compute({
+  const central = (reachMeds, reachToc) => compute({
     ...values,
     scaleEnroll: reachMeds > 0 ? values.scaleEnroll : 0,
     engagementCenter: nonNeg(values.engagementCenter) * reachMeds,
     tocScale: reachToc > 0 ? nonNeg(values.tocScale) * reachToc : 0,
-  }, acos, { medians, draws: 1 }).result.scale.acoShare;
-  const full = share(running.has('meds') ? 1 : 0, running.has('toc') ? 1 : 0);
-  const built = share(status.meds.reach, status.toc.reach);
+  }, acos, { medians, draws: 1 }).result;
+  const fullResult = central(running.has('meds') ? 1 : 0, running.has('toc') ? 1 : 0);
+  const full = fullResult.scale.acoShare;
+  const built = central(status.meds.reach, status.toc.reach).scale.acoShare;
+
+  // How long until a study can show it works, built vs. a vendor at full reach.
+  const runReach = (id, r) => (running.has(id) ? r : 0);
+  const study = {
+    built: studyPlan(fullResult, { meds: runReach('meds', status.meds.reach), toc: runReach('toc', status.toc.reach) }),
+    vendor: studyPlan(fullResult, { meds: runReach('meds', 1), toc: runReach('toc', 1) }),
+  };
 
   const vendorWeeks = nonNeg(values.vendorWeeks);
   const shareLive = (weeks) => (weeks === null ? 0 : Math.max(0, 12 - weeks / WEEKS_PER_MONTH) / 12);
@@ -194,5 +203,5 @@ export function buildCase(values, acos, skipped, running, { medians = {} } = {})
   };
   value.lostYear1 = value.vendorYear1 - value.builtYear1;
 
-  return { units, status, schedule: sched, launchWeek, vendorWeeks, volume: vol, cost: c, value };
+  return { units, status, schedule: sched, launchWeek, vendorWeeks, volume: vol, cost: c, value, study };
 }
