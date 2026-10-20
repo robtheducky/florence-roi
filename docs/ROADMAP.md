@@ -1,6 +1,6 @@
 # Roadmap
 
-Built: core adherence and transitions-of-care model, and the **Medicare ACO (MSSP)** dashboard: CMS PY2024 baseline per ACO, pilot scorecard with statistical power, scale projection, MSSP pass-through, and break-even as a share of the bet. Everything below is planned, not built.
+Built: core adherence and transitions-of-care model, and the **Medicare ACO (MSSP)** dashboard: CMS PY2024 baseline per ACO, multi-ACO search and selection, pilot scorecard with statistical power, MSSP pass-through per ACO, and a seeded Monte Carlo distribution of ACO net gain. Everything below is planned, not built.
 
 ## 0. Next for the ACO dashboard
 
@@ -9,6 +9,8 @@ Built: core adherence and transitions-of-care model, and the **Medicare ACO (MSS
 - **Full MSSP reconciliation.** Performance payment and loss caps, MLR choice, prior savings adjustment, regional adjustment, and benchmark rebasing across the agreement period. **Verify against the current year's CMS documentation.**
 - **PY2025 results** when CMS publishes them; show year-over-year trend per ACO.
 - **ACO REACH.** CMS publishes REACH financial and quality results and participant lists; add as a second data source with REACH's own discount and risk corridors. **Verify against the current year's CMS documentation.**
+- **Wider simulation.** Add uncertainty for savings per adherent patient, prevalence, and cost per readmission, and correlate engagement with completion.
+- **Calibrate to Generated Health outcomes.** Replace vendor-website anchors with Generated Health's own program data (engagement, completion, readmission effect with a comparison group) when shared.
 - **Pilot design helper.** Solve for the pilot size that makes each success metric provable, and for a matched comparison group from the ACO's non-enrolled patients.
 
 Rule for every phase: anything that depends on CMS rules that change each year is marked **verify against the current year's CMS documentation**. No measure IDs, weights, cut points, or rates are hardcoded from memory.

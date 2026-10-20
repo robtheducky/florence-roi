@@ -2,11 +2,13 @@
 
 A single-screen dashboard for a Medicare Shared Savings Program (MSSP) ACO considering an automated two-way SMS program for medication adherence and transitions of care.
 
-1. **What CMS data shows.** Pick any MSSP ACO. Its PY2024 results (lives under management, benchmark, savings rate vs. MSR, sharing rate, readmission rate, admissions, cost per admission, quality) load from the CMS public use files and become the baseline. Every value shows its PUF column.
-2. **The bet: pilot.** What a pilot of a given size should deliver, the success metrics with targets, and whether the pilot is large enough to prove each one statistically.
-3. **The bet: at scale.** Gross Medicare Parts A and B savings, what the ACO keeps after MSSP sharing, ACO net of program cost, and the break-even point expressed as a share of the bet. That break-even share is the scale-up threshold for the pilot.
+1. **CMS data.** Type to search; pick one ACO, several, or "Select all ACOs containing ..." (for example every Aledade ACO). PY2024 results (assigned beneficiaries, savings rate vs. MSR, shared savings earned, readmission rate, admissions, cost per admission, quality) load from the CMS public use files. Each tile's (i) shows its CMS column.
+2. **Pilot.** Expected Medicare spending avoided, pilot cost, net, and which success measures the pilot is large enough to prove statistically.
+3. **At scale, per year.** A distribution of ACO net gain from 2,000 simulated outcomes, the chance the ACO comes out ahead, shared savings revenue to the ACO, program cost, and Medicare spending avoided. With several ACOs selected, each settles with CMS on its own benchmark, MSR, and sharing rate, and the results are summed.
 
-Three scenarios (Conservative, Base, Vendor-reported) switch every effect assumption at once. Every parameter links to a cited source or is labeled as an assumption.
+Every card is tagged **CMS data**, **Estimate**, **Assumption**, or **Placeholder price**, and its (i) says what is known and what is assumed.
+
+The five effect assumptions (engagement, adherence odds ratio, savings realized, follow-up completion, readmission reduction) are distributions, not fixed scenarios. Engagement and completion are centered on Generated Health's reported figures; the adherence effect on the Thakkar meta-analysis; the vendor's single-site 29% readmission reduction sits at the 95th percentile rather than the center. See `docs/ASSUMPTIONS.md`.
 
 > Independent prototype by Rob Martin. Not affiliated with or endorsed by Generated Health. Estimates are illustrative.
 
@@ -52,10 +54,10 @@ node scripts/build-assumptions-doc.js
 index.html
 css/styles.css             includes the print stylesheet
 data/acos.json             598 ACOs: PY2024 results joined to the 2026 ACO list, plus MSSP medians
-data/participants.json     2026 participant legal business names by ACO
+data/participants.json     2026 participant legal business names by ACO (not shown in the UI yet)
 js/assumptions.js          single source of truth for every literature and author assumption
-js/model/core.js           pure functions: adherence and readmission model, MSSP settlement, sample size, solver
-js/model/aco.js            dashboard inputs, CMS-grounded defaults, pilot / scale / pass-through compute
+js/model/core.js           pure functions: adherence and readmission model, MSSP settlement, sample size, seeded Monte Carlo
+js/model/aco.js            inputs, CMS-grounded defaults, pilot / scale / pass-through, simulation over one or many ACOs
 js/format.js               number formatting
 js/app.js                  UI and URL state
 js/config.js               author name, roadmap link
@@ -67,8 +69,8 @@ docs/ASSUMPTIONS.md
 
 ## Sharing and printing
 
-- The selected ACO, scenario, and every edited input are kept in the URL (for example `?aco=A1001&scenario=conservative`). Use **Copy link** to share a pre-filled estimate.
-- **Print** produces a one-page leave-behind (US Letter): CMS baseline, pilot scorecard, scale results, and caveats.
+- The selected ACOs and every edited input are kept in the URL (for example `?aco=A1001,A1002&pmpm=10`). The simulation is seeded, so a shared link shows the same distribution. Use **Copy link** to share.
+- **Print** produces a one-page leave-behind (US Letter): CMS data, pilot, and the distribution at scale.
 
 ## Deploy to GitHub Pages
 
@@ -83,4 +85,4 @@ After the repo exists, set `ROADMAP_URL` in `js/config.js` to `https://github.co
 
 ## Disclaimer
 
-Program prices are placeholders, not Generated Health pricing. Values marked "Needs validation" come from vendor-reported figures or author assumptions and must be validated before external use. Literature savings are from an observational study in 2011 dollars. The MSSP pass-through is simplified (no payment or loss caps, MLR assumed equal to MSR, PY2024 terms, no rebasing). Patients with multiple conditions are counted once per condition at scale.
+Program prices are placeholders, not Generated Health pricing. Values marked "Needs validation" come from vendor-reported figures or author assumptions and must be validated before external use. Literature savings are from an observational study in 2011 dollars. The MSSP pass-through is simplified (no payment or loss caps, MLR assumed equal to MSR, PY2024 terms, no rebasing). Patients with multiple conditions are counted once per condition at scale. Only the five effect assumptions vary in the simulation, so the spread understates total uncertainty.

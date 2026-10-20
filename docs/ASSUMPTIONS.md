@@ -5,17 +5,19 @@ Generated from `js/assumptions.js` by `node scripts/build-assumptions-doc.js`. D
 **VERIFY** means the value is kept but must be validated before external use. The UI shows a "Needs validation" badge for these.
 **PLACEHOLDER** means the value is not vendor pricing.
 
-## Scenario-dependent parameters
+## Effect assumptions (sampled in the simulation)
 
-| Parameter | Conservative | Base | Vendor-reported | Source | Note | Flags |
-|---|---:|---:|---:|---|---|---|
-| Engagement (share of enrolled who actively respond) `engagement` | 50% | 70% | 80% | Vendor-reported (public website); Author assumption | Vendor site reports 77–88% response rates. Conservative and Base values are author assumptions. | **VERIFY** |
-| Adherence odds ratio from SMS `adherenceOR` | 1.68 | 2.11 | 2.11 | [Thakkar et al., JAMA Intern Med 2016](https://doi.org/10.1001/jamainternmed.2015.7667) | Meta-analysis of 16 RCTs, n=2,742. OR 2.11 (95% CI 1.52–2.93); 1.68 after adjusting for publication bias. |  |
-| Realization of literature savings `realization` | 50% | 75% | 100% | Author assumption | Haircut because Roebuck is observational and reported in 2011 dollars. |  |
-| Transitions-of-care program completion `tocCompletion` | 50% | 65% | 73% | Vendor-reported (public website); Author assumption | Vendor reports 73% post-discharge completion. Conservative and Base values are author assumptions. | **VERIFY** |
-| Relative reduction in 30-day readmissions among completers `readmitReduction` | 10% | 15% | 29% | Vendor-reported (public website); Author assumption | 29% is vendor-reported (single hospital, n not disclosed). 10% and 15% are author placeholders. | **VERIFY** |
+The dashboard draws each of these from its distribution 2,000 times (seeded, so a shared link always shows the same result). Normal distributions are truncated to their valid range.
 
-## Fixed parameters (editable in the Advanced drawer or as inputs)
+| Parameter | Distribution | 10th to 90th percentile | Anchored to | Source | Note | Flags |
+|---|---|---|---|---|---|---|
+| Engagement (share of enrolled who respond) `engagement` | Normal, mean 77%, SD 7% | 68% to 86% | Generated Health | Vendor-reported (public website) | Centered on the low end of the vendor-reported 77–88% response rate. SD 7 points. | **VERIFY** |
+| Adherence odds ratio from SMS `adherenceOR` | Log-normal, median 1.68, log SD 0.167 | 1.36 to 2.08 | Literature | [Thakkar et al., JAMA Intern Med 2016](https://doi.org/10.1001/jamainternmed.2015.7667) | Centered on the publication-bias-adjusted OR 1.68. Spread from the 95% CI 1.52–2.93 (log SD 0.167). The unadjusted 2.11 sits near the 91st percentile. |  |
+| Share of literature savings realized `realization` | Normal, mean 75%, SD 15% | 56% to 94% | Assumption | Author assumption | Haircut because Roebuck is observational and in 2011 dollars. |  |
+| Transitions-of-care completion `tocCompletion` | Normal, mean 73%, SD 7% | 64% to 82% | Generated Health | Vendor-reported (public website) | Centered on the vendor-reported 73% post-discharge completion. SD 7 points. | **VERIFY** |
+| Readmission reduction among completers `readmitReduction` | Normal, mean 15%, SD 9% | 4% to 26% | Assumption | Vendor-reported (public website); Author assumption | Vendor-reported 29% is one hospital, n not disclosed, no comparison group, so it is set at the 95th percentile rather than the center. | **VERIFY** |
+
+## Fixed parameters (editable as inputs)
 
 | Parameter | Value | Unit | Source | Note | Flags |
 |---|---:|---|---|---|---|
