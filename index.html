@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SMS Care Program ROI Estimator</title>
+  <meta name="description" content="Independent prototype estimating the financial impact of automated two-way SMS for chronic care and transitions of care.">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="wrap">
+      <div class="title-row">
+        <div>
+          <p class="eyebrow">Independent prototype</p>
+          <h1>Two-way SMS care program: ROI estimator</h1>
+          <p class="subtitle">Medication adherence and transitions of care. Every figure links to a cited source or is labeled as an assumption.</p>
+        </div>
+        <div class="header-actions no-print">
+          <button type="button" class="btn" id="copy-link">Copy link</button>
+          <button type="button" class="btn" id="print">Print</button>
+          <button type="button" class="btn btn-quiet" id="reset">Reset to defaults</button>
+        </div>
+      </div>
+      <nav class="tabs no-print" id="tabs" aria-label="Buyer modules"></nav>
+      <p class="print-only print-meta" id="print-meta"></p>
+    </div>
+  </header>
+
+  <main class="wrap layout">
+    <aside class="inputs-panel" aria-labelledby="inputs-heading">
+      <h2 id="inputs-heading" class="panel-title">Inputs</h2>
+      <form id="inputs" novalidate></form>
+    </aside>
+
+    <section class="results" aria-labelledby="results-heading" aria-live="polite">
+      <div class="results-top">
+        <h2 id="results-heading" class="panel-title">Results</h2>
+        <fieldset class="scenario no-print" id="scenario">
+          <legend class="sr-only">Scenario</legend>
+        </fieldset>
+      </div>
+      <p class="print-only" id="print-scenario"></p>
+      <div id="headline" class="headline"></div>
+      <div id="comparison" class="card comparison"></div>
+      <div id="print-inputs" class="print-only print-inputs"></div>
+      <div class="card breakdown-card">
+        <h3 class="card-title">Breakdown</h3>
+        <table class="breakdown" id="breakdown"></table>
+      </div>
+      <ul class="caveats" id="caveats"></ul>
+      <details class="card math no-print" id="math-details">
+        <summary>Show the math</summary>
+        <div id="math"></div>
+      </details>
+      <div class="card assumptions-card">
+        <h3 class="card-title">Assumptions &amp; sources</h3>
+        <div class="table-scroll">
+          <table class="assumptions" id="assumptions"></table>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap" id="footer"></div>
+  </footer>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
