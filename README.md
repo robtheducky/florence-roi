@@ -51,6 +51,12 @@ node scripts/build-aco-data.js --refresh  # re-download
 
 When CMS publishes PY2025 results, update the URLs in `scripts/build-aco-data.js` and rerun.
 
+After changing any file in `js/`, restamp the script versions so browsers never mix cached and new modules (GitHub Pages caches scripts for 10 minutes; `node --test` fails if you forget):
+
+```sh
+node scripts/stamp-versions.js
+```
+
 Regenerate `docs/ASSUMPTIONS.md` after editing `js/assumptions.js`:
 
 ```sh
