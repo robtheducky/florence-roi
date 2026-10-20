@@ -65,6 +65,8 @@ const sameValue = (input, a, b) => (input.kind === 'choice' ? String(a) === Stri
 function writeUrl() {
   const q = new URLSearchParams();
   if (state.selected.length) q.set('aco', state.selected.join(','));
+  const ma = new URLSearchParams(location.search).get('ma');
+  if (ma && !state.selected.length) q.set('ma', ma);
   for (const input of INPUTS) {
     const v = state.values[input.id];
     if (v !== '' && !sameValue(input, v, state.defaults[input.id])) q.set(input.id, v);
@@ -253,7 +255,9 @@ function renderObserved() {
   } else {
     const a = withRes[0] ?? null;
     const named = acos[0];
-    if (!acos.length) notice = `<p class="notice">No ACO selected. Showing the median of ${fmt(state.data.meta.counts.withResults, 'number0')} MSSP ACOs.</p>`;
+    const maId = new URLSearchParams(location.search).get('ma');
+    if (!acos.length && maId) notice = `<p class="notice"><strong>Modeling Medicare Advantage contract ${esc(maId)}</strong> from the <a href="ma-opportunities.html?c=${encodeURIComponent(maId)}">MA Opportunity Finder</a>: its enrollment and its own Part D adherence, as one payer that keeps 100% of savings (no MSR). Admissions, readmission rate, and cost per admission below are MSSP medians, not MA data. The tiles describe the median MSSP ACO.</p>`;
+    else if (!acos.length) notice = `<p class="notice">No ACO selected. Showing the median of ${fmt(state.data.meta.counts.withResults, 'number0')} MSSP ACOs.</p>`;
     else if (!a) notice = `<p class="notice">${esc(named.name)} joined after PY2024. CMS has no results yet, so MSSP medians fill in. Edit them under ACO baseline.</p>`;
     else if (acos.length > 1) notice = `<p class="notice">Only ${esc(a.name)} of the ${acos.length} selected ACOs has PY2024 results.</p>`;
     else if (!a.active2026) notice = `<p class="notice">${esc(a.name)} is not in the 2026 program. Showing its PY2024 results.</p>`;
