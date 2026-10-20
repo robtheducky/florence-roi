@@ -30,7 +30,7 @@ The dashboard draws each of these from its distribution 2,000 times (seeded, so 
 | Prevalence among assigned beneficiaries, diabetes `prevDM` | 27% | share | [CMS Chronic Conditions Data Warehouse](https://www2.ccwdata.org/web/guest/medicare-charts/medicare-chronic-condition-charts) | Approximate national Medicare FFS prevalence. | **VERIFY** |
 | Prevalence among assigned beneficiaries, heart failure `prevHF` | 14% | share | [CMS Chronic Conditions Data Warehouse](https://www2.ccwdata.org/web/guest/medicare-charts/medicare-chronic-condition-charts) | Approximate national Medicare FFS prevalence. | **VERIFY** |
 | Share of eligible patients enrolled at scale `scaleEnroll` | 30% | share | Author assumption | An ACO decision, not a fact. Most ACOs would target patients with an adherence gap rather than everyone with the condition. |  |
-| Share of short-term admissions enrolled in transitions of care at scale `tocScale` | 50% | share | Author assumption | Depends on ADT feed coverage across the ACO’s hospitals. |  |
+| Share of short-term admissions enrolled in transitions of care at scale `tocScale` | 50% | share | Author assumption | Depends on how many of the ACO’s hospitals send discharge notifications. |  |
 | Program price, chronic care `pmpm` | $8.00 | USD PMPM | Author assumption | Placeholder. Not Generated Health pricing. | **PLACEHOLDER** |
 | Program price, transitions of care `episodeFee` | $50 | USD per discharge episode | Author assumption | Placeholder. Not Generated Health pricing. | **PLACEHOLDER** |
 

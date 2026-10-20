@@ -187,7 +187,7 @@ export const ASSUMPTIONS = {
     format: 'percent0',
     value: 0.5,
     sources: ['author'],
-    note: 'Depends on ADT feed coverage across the ACO\u2019s hospitals.',
+    note: 'Depends on how many of the ACO\u2019s hospitals send discharge notifications.',
     verify: false,
   },
   pmpm: {
