@@ -180,8 +180,10 @@ test('multiple ACOs settle separately and sum', () => {
   assert.equal(units.length, 2);
   const both = compute(values, two, med).result.scale;
   const each = two.map((a) => compute(acoDefaults(a, data.medians).values, [a], med).result.scale);
-  near(both.gross, each[0].gross + each[1].gross, 1e-3);
-  near(both.acoShare, each[0].acoShare + each[1].acoShare, 1e-3);
+  // Single-ACO mode rounds the adherence input to 0.1 point, so allow 0.5% relative error.
+  const rel = (a, b) => near(a, b, Math.abs(b) * 0.005);
+  rel(both.gross, each[0].gross + each[1].gross);
+  rel(both.acoShare, each[0].acoShare + each[1].acoShare);
 });
 
 test('ACOs without results are left out of a multi-ACO selection', () => {
@@ -211,7 +213,27 @@ test('blank and garbage inputs degrade to zero, not NaN', () => {
 test('pilot readmission metric flags when the pilot is underpowered', () => {
   const r = compute(medianDefaults(), [], med).result;
   assert.equal(r.scorecard.find((x) => x.id === 'readmit').provable, false);
-  assert.equal(r.scorecard.find((x) => x.id === 'adherence').provable, true);
+  // Starting near 89% adherence, 900 patients cannot show the lift; targeting non-adherent patients can.
+  assert.equal(r.scorecard.find((x) => x.id === 'adherence').provable, false);
+  const targeted = compute({ ...medianDefaults(), targeting: 'gap' }, [], med).result;
+  assert.equal(targeted.scorecard.find((x) => x.id === 'adherence').provable, true);
   const big = compute({ ...medianDefaults(), pilotDischarges: 50000 }, [], med).result;
   assert.equal(big.scorecard.find((x) => x.id === 'readmit').provable, true);
+});
+
+test('CMS Part D adherence sets the baseline for every ACO', () => {
+  for (const a of data.acos) {
+    assert.ok(a.partD && a.partD.ras > 0.8 && a.partD.ras < 1, a.id);
+    const { values, origin } = acoDefaults(a, data.medians);
+    assert.equal(origin.baselineAdherence, 'cms');
+    assert.ok(values.baselineAdherence > 80 && values.baselineAdherence < 100);
+  }
+});
+
+test('targeting non-adherent patients shrinks the pool and widens the gap', () => {
+  const all = compute(medianDefaults(), [], med).result;
+  const gap = compute({ ...medianDefaults(), targeting: 'gap' }, [], med).result;
+  assert.ok(gap.scale.enrolled < all.scale.enrolled * 0.2);
+  assert.ok(gap.pilotAnnual.p0 < all.pilotAnnual.p0);
+  assert.ok(gap.scale.cost < all.scale.cost);
 });

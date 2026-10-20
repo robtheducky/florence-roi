@@ -25,6 +25,7 @@ The dashboard draws each of these from its distribution 2,000 times (seeded, so 
 | Net annual savings per newly adherent patient, diabetes `savingsDM` | $3,756 | USD per patient-year | [Roebuck et al., Health Affairs 2011](https://doi.org/10.1377/hlthaff.2010.0421) | Net of added drug spend. 2011 dollars. |  |
 | Net annual savings per newly adherent patient, heart failure `savingsCHF` | $7,823 | USD per patient-year | [Roebuck et al., Health Affairs 2011](https://doi.org/10.1377/hlthaff.2010.0421) | Net of added drug spend. 2011 dollars. |  |
 | Cost per short-term inpatient admission `costPerAdmit` | $12,354 | USD per admission | [CMS MSSP PY2024 results PUF](https://data.cms.gov/medicare-shared-savings-program/performance-year-financial-and-quality-results) | Derived per ACO: short-term inpatient spend per capita ÷ short-term admissions per capita (CapAnn_INP_S_trm ÷ ADM_S_Trm). Default is the MSSP median. A readmission may cost more or less than the average admission. |  |
+| Next-year adherence of last year’s non-adherent patients, without the program `targetedAdherence` | 50% | share | Author assumption | Used only when texts go to patients below 80% PDC last year. Many recover on their own (regression to the mean), so this is well above zero. Replace with the ACO’s own Part D claims (CCLF). | **VERIFY** |
 | Prevalence among assigned beneficiaries, hypertension `prevHTN` | 57% | share | [CMS Chronic Conditions Data Warehouse](https://www2.ccwdata.org/web/guest/medicare-charts/medicare-chronic-condition-charts) | Approximate national Medicare FFS prevalence. Replace with the ACO’s registry count when available. | **VERIFY** |
 | Prevalence among assigned beneficiaries, diabetes `prevDM` | 27% | share | [CMS Chronic Conditions Data Warehouse](https://www2.ccwdata.org/web/guest/medicare-charts/medicare-chronic-condition-charts) | Approximate national Medicare FFS prevalence. | **VERIFY** |
 | Prevalence among assigned beneficiaries, heart failure `prevHF` | 14% | share | [CMS Chronic Conditions Data Warehouse](https://www2.ccwdata.org/web/guest/medicare-charts/medicare-chronic-condition-charts) | Approximate national Medicare FFS prevalence. | **VERIFY** |
@@ -35,7 +36,7 @@ The dashboard draws each of these from its distribution 2,000 times (seeded, so 
 
 ## Client inputs without a source
 
-Baseline adherence (60%), baseline 30-day readmission rate (17%), enrollment counts, and discharge volume are illustrative defaults. Replace them with the prospect's own numbers.
+ACO baseline values (assigned beneficiaries, admissions, readmission rate, cost per admission, benchmark, savings rate, MSR, sharing and loss rates) come from the CMS MSSP PY2024 results file per ACO, or MSSP medians when no ACO is selected. Baseline adherence (60%) and pilot sizes are illustrative defaults; replace them with the prospect's own numbers.
 
 ## Sources
 
@@ -44,6 +45,7 @@ Baseline adherence (60%), baseline 30-day readmission rate (17%), enrollment cou
 - **CMS MSSP PY2024 results PUF.** Shared Savings Program Performance Year Financial and Quality Results, PY2024 (revised 2026-07-17). ACO-level public use file. <https://data.cms.gov/medicare-shared-savings-program/performance-year-financial-and-quality-results>
 - **MSSP financial methodology.** Shared Savings Program financial reconciliation rules (MSR, sharing rate, loss rate). Simplified here; verify against the current year’s CMS documentation. <https://www.cms.gov/medicare/payment/fee-for-service-providers/shared-savings-program-ssp-acos/guidance-regulations>
 - **CMS Chronic Conditions Data Warehouse.** Approximate national Medicare fee-for-service prevalence from CMS chronic condition reporting. Confirm against the current CCW tables, or replace with the ACO’s own registry counts. <https://www2.ccwdata.org/web/guest/medicare-charts/medicare-chronic-condition-charts>
+- **CMS 2027 Star Ratings (Part D adherence).** 2027 Part C and D Star Ratings Data Tables, measurement year 2025: D08 diabetes medications, D09 RAS antagonists, D10 statins, for standalone drug plans (PDPs). Weighted by October 2026 PDP enrollment by county and by the ACO’s PY2024 assigned beneficiaries by county. <https://www.cms.gov/medicare/health-drug-plans/part-c-d-performance-data>
 - **Two-proportion sample size.** Standard two-sided two-proportion z-test, alpha 0.05, power 0.80, equal arms. Assumes a comparable comparison group.
 - **Vendor-reported (public website).** Figures reported on the vendor’s public website. Not peer reviewed. Capture the exact page and date before relying on them.
 - **Author assumption.** Assumption chosen by the author of this prototype. Replace with client data or a cited source.

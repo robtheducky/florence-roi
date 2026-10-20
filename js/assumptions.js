@@ -32,6 +32,11 @@ export const SOURCES = {
     full: 'Approximate national Medicare fee-for-service prevalence from CMS chronic condition reporting. Confirm against the current CCW tables, or replace with the ACO\u2019s own registry counts.',
     url: 'https://www2.ccwdata.org/web/guest/medicare-charts/medicare-chronic-condition-charts',
   },
+  stars: {
+    short: 'CMS 2027 Star Ratings (Part D adherence)',
+    full: '2027 Part C and D Star Ratings Data Tables, measurement year 2025: D08 diabetes medications, D09 RAS antagonists, D10 statins, for standalone drug plans (PDPs). Weighted by October 2026 PDP enrollment by county and by the ACO\u2019s PY2024 assigned beneficiaries by county.',
+    url: 'https://www.cms.gov/medicare/health-drug-plans/part-c-d-performance-data',
+  },
   stats: {
     short: 'Two-proportion sample size',
     full: 'Standard two-sided two-proportion z-test, alpha 0.05, power 0.80, equal arms. Assumes a comparable comparison group.',
@@ -130,6 +135,15 @@ export const ASSUMPTIONS = {
     sources: ['cmsResults'],
     note: 'Derived per ACO: short-term inpatient spend per capita \u00f7 short-term admissions per capita (CapAnn_INP_S_trm \u00f7 ADM_S_Trm). Default is the MSSP median. A readmission may cost more or less than the average admission.',
     verify: false,
+  },
+  targetedAdherence: {
+    label: 'Next-year adherence of last year\u2019s non-adherent patients, without the program',
+    unit: 'share',
+    format: 'percent0',
+    value: 0.5,
+    sources: ['author'],
+    note: 'Used only when texts go to patients below 80% PDC last year. Many recover on their own (regression to the mean), so this is well above zero. Replace with the ACO\u2019s own Part D claims (CCLF).',
+    verify: true,
   },
   prevHTN: {
     label: 'Prevalence among assigned beneficiaries, hypertension',

@@ -23,6 +23,7 @@ Linked from the estimator header and sized to the same ACO selection. It turns t
 ## What the public data can and cannot do
 
 - Lives under management are published **per ACO only**. CMS does not publish participant TINs or assignment by TIN; the participant file lists legal business names. TIN-level views need the ACO's own CMS assignment reports or claims line feed.
+- **Adherence (PDC ≥ 80%) now comes from CMS.** MSSP covers Parts A and B only, so there is no ACO-level PDC. The estimator uses 2027 Star Ratings Part D adherence (measurement year 2025) for standalone drug plans, weighted by October 2026 plan enrollment in each county and by the ACO's PY2024 beneficiaries in each county. It lands near 89% everywhere, so texting everyone with the condition has a small gap; the estimator lets you target only last year's non-adherent patients instead.
 - Condition prevalence is not in the MSSP files. The dashboard uses approximate national Medicare FFS prevalence (flagged "Needs validation") unless the ACO enters its own registry counts.
 - 122 ACOs in the 2026 program joined after PY2024 and have no results yet. They load with MSSP medians.
 
@@ -61,7 +62,7 @@ node scripts/build-assumptions-doc.js
 ```
 index.html
 css/styles.css             includes the print stylesheet
-data/acos.json             598 ACOs: PY2024 results joined to the 2026 ACO list, plus MSSP medians
+data/acos.json             598 ACOs: PY2024 results joined to the 2026 ACO list, Part D adherence near each ACO, MSSP medians
 data/participants.json     2026 participant legal business names by ACO (not shown in the UI yet)
 js/assumptions.js          single source of truth for every literature and author assumption
 js/model/core.js           pure functions: adherence and readmission model, MSSP settlement, sample size, seeded Monte Carlo

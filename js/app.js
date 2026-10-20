@@ -54,16 +54,19 @@ function readUrl() {
   applySelection((q.get('aco') ?? '').split(',').filter(Boolean), { keepEdits: false });
   for (const input of INPUTS) {
     const raw = q.get(input.id);
-    if (raw !== null && raw.trim() !== '' && Number.isFinite(Number(raw))) state.values[input.id] = raw;
+    if (raw !== null && validValue(input, raw)) state.values[input.id] = raw;
   }
 }
+
+const validValue = (input, raw) => (input.kind === 'choice' ? input.options.some(([v]) => v === raw) : raw.trim() !== '' && Number.isFinite(Number(raw)));
+const sameValue = (input, a, b) => (input.kind === 'choice' ? String(a) === String(b) : Number(a) === Number(b));
 
 function writeUrl() {
   const q = new URLSearchParams();
   if (state.selected.length) q.set('aco', state.selected.join(','));
   for (const input of INPUTS) {
     const v = state.values[input.id];
-    if (v !== '' && Number(v) !== Number(state.defaults[input.id])) q.set(input.id, v);
+    if (v !== '' && !sameValue(input, v, state.defaults[input.id])) q.set(input.id, v);
   }
   const qs = q.toString().replace(/%2C/g, ',');
   history.replaceState(null, '', qs ? `?${qs}` : location.pathname);
@@ -193,6 +196,14 @@ function tile(label, value, sub, column) {
     <div class="tile-value">${value}</div>${sub ? `<div class="tile-sub">${sub}</div>` : ''}</div>`;
 }
 
+function partDTile(ras, dm, sub) {
+  const src = state.data.meta.sources.stars;
+  return `<div class="tile">
+    <div class="tile-head"><span class="tile-label">Taking meds as prescribed (PDC \u2265 80%)</span>${info(`<strong>Source:</strong> ${esc(src.name)}, released ${esc(src.released)}. Standalone Part D plans, weighted by plan enrollment in each county and the ACO\u2019s beneficiaries in each county.<br><code>D09 RAS antagonists; D08 diabetes medications</code>`, 'Source for adherence')}</div>
+    <div class="tile-value">${esc(fmt(ras, 'percent1'))} <span class="tile-of">blood pressure</span> \u00b7 ${esc(fmt(dm, 'percent1'))} <span class="tile-of">diabetes</span></div>
+    <div class="tile-sub">${esc(sub)}. 2025, from 2027 Star Ratings</div></div>`;
+}
+
 const vsMedian = (key, format) => `Median ACO: ${esc(fmt(state.data.medians[key], format))}`;
 
 function renderObserved() {
@@ -221,6 +232,7 @@ function renderObserved() {
       tile('Admissions per 1,000', fmt(weighted(withRes, (a) => a.stAdmitsPer1000, (a) => a.lum), 'number0'), vsMedian('stAdmitsPer1000', 'number0'), 'ADM_S_Trm'),
       tile('Cost per admission', fmt(weighted(withRes, (a) => a.costPerAdmit, admits), 'currency0'), vsMedian('costPerAdmit', 'currency0'), 'CapAnn_INP_S_trm ÷ ADM_S_Trm'),
       tile('Quality score', fmt(weighted(withRes, (a) => a.qualityScore, (a) => a.lum), 'number1'), `Weighted by beneficiaries. ${vsMedian('qualityScore', 'number1')}`, 'QualScore'),
+      partDTile(weighted(withRes, (a) => a.partD?.ras, (a) => a.lum), weighted(withRes, (a) => a.partD?.dm, (a) => a.lum), 'Weighted by beneficiaries'),
     ];
   } else {
     const a = withRes[0] ?? null;
@@ -240,6 +252,7 @@ function renderObserved() {
       tile('Admissions per 1,000', fmt(v('stAdmitsPer1000'), 'number0'), a ? vsMedian('stAdmitsPer1000', 'number0') : '', 'ADM_S_Trm'),
       tile('Cost per admission', fmt(v('costPerAdmit'), 'currency0'), a ? vsMedian('costPerAdmit', 'currency0') : '', 'CapAnn_INP_S_trm ÷ ADM_S_Trm'),
       tile('Quality score', fmt(v('qualityScore'), 'number1'), a ? vsMedian('qualityScore', 'number1') : '', 'QualScore'),
+      partDTile((named?.partD ?? m.partD).ras, (named?.partD ?? m.partD).dm, !named ? 'National, standalone drug plans' : named.partD?.basis === 'states' ? 'Drug plans in its states' : 'Drug plans in its counties'),
     ];
   }
   $('observed-notice').innerHTML = notice;
@@ -265,7 +278,7 @@ function renderAcoTable(acos) {
 // ---------- inputs ----------
 
 function originTag(input) {
-  if (Number(state.values[input.id]) !== Number(state.defaults[input.id])) return tag('edited');
+  if (!sameValue(input, state.values[input.id], state.defaults[input.id])) return tag('edited');
   if (state.origin[input.id] === 'cms') return tag('cms');
   if (state.origin[input.id] === 'median') return tag('median');
   return '';
@@ -286,6 +299,13 @@ function fieldTip(input) {
 }
 
 function inputField(input) {
+  if (input.kind === 'choice') {
+    return `<div class="field">
+      <div class="field-head"><label for="in-${input.id}">${esc(input.label)}</label>${fieldTip(input)}</div>
+      <div class="control"><select id="in-${input.id}" name="${input.id}">${input.options.map(([v, l]) => `<option value="${esc(v)}"${String(state.values[input.id]) === v ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select></div>
+      <div class="field-tags" id="origin-${input.id}">${fieldTags(input)}</div>
+    </div>`;
+  }
   const prefix = input.kind === 'currency' ? '<span class="affix">$</span>' : '';
   const suffix = input.kind === 'percent' ? '%' : input.suffix ?? '';
   const max = input.kind === 'percent' ? ' max="100"' : input.max ? ` max="${input.max}"` : '';
@@ -332,7 +352,7 @@ function renderPilot(r) {
 
   const cell = (v, f) => (v === null ? '<span class="muted">n/a</span>' : esc(fmt(v, f)));
   const readmitKnown = isMulti() || state.origin.baselineReadmit === 'cms';
-  const nowTag = { adherence: tag('assumption'), readmit: readmitKnown ? tag('cms') : tag('median') };
+  const nowTag = { adherence: state.values.targeting === 'gap' ? tag('assumption') : tag('cms'), readmit: readmitKnown ? tag('cms') : tag('median') };
   $('scorecard').innerHTML = `<thead><tr>
       <th scope="col">Measure</th><th scope="col" class="num">Now</th><th scope="col" class="num">Target</th>
       <th scope="col" class="num">Needed per group ${info('Patients per group (program and comparison) to detect the target with 95% confidence and 80% power. Two-proportion z-test.', 'About needed per group')}</th>
@@ -610,6 +630,9 @@ function bind() {
     if (e.target.id === 'clear-acos') selectionChanged([]);
   });
 
+  $('inputs').addEventListener('change', (e) => {
+    if (e.target.tagName === 'SELECT') e.target.dispatchEvent(new Event('input', { bubbles: true }));
+  });
   $('inputs').addEventListener('input', (e) => {
     const input = INPUTS.find((i) => i.id === e.target.name);
     if (!input) return;

@@ -23,6 +23,15 @@ export const GROUPS = [
   { id: 'advanced', label: 'Savings per adherent patient', collapsible: true },
 ];
 
+// One adherence rate for the enrolled conditions from Part D Star Ratings:
+// RAS antagonists for hypertension and heart failure, diabetes medications for
+// diabetes, weighted by default prevalence. Returns a share (0-1).
+export function blendPartD(pd) {
+  if (!pd) return null;
+  const w = { htn: fixed('prevHTN'), dm: fixed('prevDM'), hf: fixed('prevHF') };
+  return (w.htn * pd.ras + w.dm * pd.dm + w.hf * pd.ras) / (w.htn + w.dm + w.hf);
+}
+
 // `data` names the field in data/acos.json; `fromAco` converts it to the input's units.
 const BASELINE_INPUTS = [
   { id: 'lum', label: 'Assigned beneficiaries', kind: 'count', data: 'lum', column: 'N_AB' },
@@ -34,6 +43,12 @@ const BASELINE_INPUTS = [
   { id: 'msr', label: 'Minimum savings rate (MSR)', kind: 'percent', step: 0.1, data: 'msr', column: 'MinSavPerc' },
   { id: 'shareRate', label: 'Sharing rate', kind: 'percent', data: 'shareRate', column: 'FinalShareRate' },
   { id: 'lossRate', label: 'Shared loss rate (0 = one-sided)', kind: 'percent', step: 0.1, data: 'lossRate', column: 'FinalLossRate' },
+  {
+    id: 'baselineAdherence', label: 'Adherence now (PDC \u2265 80%)', kind: 'percent', step: 0.1, data: 'partD', anyAco: true,
+    fromAco: (pd) => +(blendPartD(pd) * 100).toFixed(1),
+    column: 'Star Ratings D08/D09, drug plans in the ACO\u2019s counties',
+    tip: 'Share of Part D members with PDC \u2265 80% in 2025, from 2027 Star Ratings for standalone drug plans, weighted by plan enrollment in each county and by the ACO\u2019s beneficiaries in each county.',
+  },
 ].map((i) => ({ ...i, group: 'aco' }));
 
 // Center and spread inputs for each uncertain assumption.
@@ -54,6 +69,11 @@ const UNCERTAINTY_INPUTS = UNCERTAIN_IDS.flatMap((id) => {
 export const INPUTS = [
   ...BASELINE_INPUTS,
 
+  {
+    id: 'targeting', group: 'pilot', label: 'Medication texts go to', kind: 'choice', default: 'all',
+    options: [['all', 'Everyone with the condition'], ['gap', 'Only patients below 80% PDC last year']],
+    tip: 'Everyone: starts from CMS adherence (about 89%), so the gap is small. Only non-adherent: a smaller pool (1 minus CMS adherence) with a much larger gap; ACOs can find them in Part D claims in their CCLF files.',
+  },
   { id: 'pilotMonths', group: 'pilot', label: 'Length', kind: 'count', suffix: 'months', default: 6, max: 24 },
   { id: 'pilotHTN', group: 'pilot', label: 'Patients with hypertension', kind: 'count', default: 500 },
   { id: 'pilotDM', group: 'pilot', label: 'Patients with diabetes', kind: 'count', default: 300 },
@@ -66,7 +86,7 @@ export const INPUTS = [
   { id: 'pmpm', group: 'pricing', label: 'Chronic care, per patient per month', kind: 'currency', step: 0.5, default: fixed('pmpm'), assumptionId: 'pmpm', placeholder: true },
   { id: 'episodeFee', group: 'pricing', label: 'Transitions of care, per discharge', kind: 'currency', default: fixed('episodeFee'), assumptionId: 'episodeFee', placeholder: true },
 
-  { id: 'baselineAdherence', group: 'clinical', label: 'Adherence before program (PDC ≥ 80%)', kind: 'percent', default: 60, tip: 'Medicare Part D adherence is often 80–90% population-wide. 60% assumes the ACO enrolls patients with a known adherence gap.' },
+  { id: 'targetedAdherence', group: 'clinical', label: 'Adherence next year for last year\u2019s non-adherent, without the program', kind: 'percent', default: pctOf(fixed('targetedAdherence')), assumptionId: 'targetedAdherence' },
   { id: 'prevHTN', group: 'clinical', label: 'Have hypertension', kind: 'percent', default: pctOf(fixed('prevHTN')), assumptionId: 'prevHTN' },
   { id: 'prevDM', group: 'clinical', label: 'Have diabetes', kind: 'percent', default: pctOf(fixed('prevDM')), assumptionId: 'prevDM' },
   { id: 'prevHF', group: 'clinical', label: 'Have heart failure', kind: 'percent', default: pctOf(fixed('prevHF')), assumptionId: 'prevHF' },
@@ -80,7 +100,7 @@ export const INPUTS = [
 
 export const ASSUMPTION_IDS = [
   ...UNCERTAIN_IDS,
-  'savingsHTN', 'savingsDM', 'savingsCHF', 'costPerAdmit', 'prevHTN', 'prevDM', 'prevHF',
+  'savingsHTN', 'savingsDM', 'savingsCHF', 'costPerAdmit', 'targetedAdherence', 'prevHTN', 'prevDM', 'prevHF',
   'scaleEnroll', 'tocScale', 'pmpm', 'episodeFee',
 ];
 
@@ -100,10 +120,13 @@ export function acoDefaults(aco, medians) {
       origin[input.id] = 'assumption';
       continue;
     }
-    let raw = aco?.hasResults ? aco[input.data] : null;
+    let raw = aco && (aco.hasResults || input.anyAco) ? aco[input.data] : null;
     if (input.id === 'lossRate' && aco?.hasResults && aco.riskModel === 'One-Sided') raw = 0;
     if (raw !== null && raw !== undefined) {
       values[input.id] = input.fromAco ? input.fromAco(raw) : raw;
+      origin[input.id] = 'cms';
+    } else if (input.anyAco) {
+      values[input.id] = input.fromAco(medians[input.data]);
       origin[input.id] = 'cms';
     } else {
       let m = medians[input.data];
@@ -130,6 +153,7 @@ function unitFromValues(values) {
     msr: n('msr') / 100,
     shareRate: n('shareRate') / 100,
     lossRate: n('lossRate') / 100,
+    adherence: n('baselineAdherence') / 100,
   };
 }
 
@@ -145,6 +169,7 @@ function unitFromAco(a, medians) {
     msr: (a.msr ?? 0) / 100,
     shareRate: (a.shareRate ?? 0) / 100,
     lossRate: a.riskModel === 'One-Sided' ? 0 : (a.lossRate ?? 0) / 100,
+    adherence: blendPartD(a.partD ?? medians.partD),
   };
 }
 
@@ -187,6 +212,12 @@ function run(effect, units, values, detail) {
     wReadmit += a * u.readmit;
     wCost += a * u.costPerAdmit;
   }
+  // Targeting non-adherent patients swaps the CMS baseline for last year's
+  // non-adherent and shrinks the eligible pool to (1 - CMS adherence).
+  const targeted = values.targeting === 'gap';
+  const lumAll = units.reduce((t, u) => t + u.lum, 0);
+  const popAdherence = lumAll > 0 ? units.reduce((t, u) => t + u.lum * u.adherence, 0) / lumAll : units[0].adherence;
+  const p0For = (u) => (targeted ? pct('targetedAdherence') : u.adherence);
   const pilotReadmit = admits > 0 ? wReadmit / admits : units[0].readmit;
   const pilotCost = admits > 0 ? wCost / admits : units[0].costPerAdmit;
   const months = Math.min(24, n('pilotMonths'));
@@ -194,7 +225,7 @@ function run(effect, units, values, detail) {
   const pa = estimate(
     {
       enrolled: { htn: n('pilotHTN'), dm: n('pilotDM'), hf: n('pilotHF') },
-      baselineAdherence: pct('baselineAdherence'),
+      baselineAdherence: targeted ? pct('targetedAdherence') : popAdherence,
       discharges: n('pilotDischarges'),
       baselineReadmitRate: pilotReadmit,
       pmpm: n('pmpm'),
@@ -219,11 +250,11 @@ function run(effect, units, values, detail) {
   // Scale: every ACO settles with CMS on its own benchmark.
   const scale = { enrolled: 0, enrolledByCondition: { htn: 0, dm: 0, hf: 0 }, discharges: 0, newlyAdherent: 0, readmitsAvoided: 0, adherenceSavings: 0, readmitSavings: 0, gross: 0, cost: 0, acoShare: 0, benchmark: 0, perAco: [] };
   for (const u of units) {
-    const share = pct('scaleEnroll');
+    const share = pct('scaleEnroll') * (targeted ? 1 - u.adherence : 1);
     const r = estimate(
       {
         enrolled: { htn: u.lum * pct('prevHTN') * share, dm: u.lum * pct('prevDM') * share, hf: u.lum * pct('prevHF') * share },
-        baselineAdherence: pct('baselineAdherence'),
+        baselineAdherence: p0For(u),
         discharges: ((u.lum * u.admitsPer1000) / 1000) * pct('tocScale'),
         baselineReadmitRate: u.readmit,
         pmpm: n('pmpm'),

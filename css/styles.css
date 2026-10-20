@@ -127,7 +127,8 @@ h1 { margin: 0; font-size: 24px; line-height: 1.2; }
 .control { display: flex; align-items: center; border: 1px solid #c3cbd1; border-radius: 8px; background: #fff; }
 .control:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 .control input { flex: 1; min-width: 0; border: 0; background: transparent; padding: 8px 10px; font: inherit; font-size: 16px; font-variant-numeric: tabular-nums; color: var(--ink); }
-.control input:focus { outline: none; }
+.control input:focus, .control select:focus { outline: none; }
+.control select { flex: 1; min-width: 0; border: 0; background: transparent; padding: 8px 10px; font: inherit; font-size: 15px; color: var(--ink); }
 .affix { padding: 0 10px; color: var(--ink-3); font-size: 13px; white-space: nowrap; }
 .affix:first-child { padding-right: 0; }
 .field-tags:not(:empty) { margin-top: 4px; }

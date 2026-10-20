@@ -33,7 +33,8 @@ function readUrl() {
   state.passthrough = new URLSearchParams();
   for (const input of INPUTS) {
     const raw = q.get(input.id);
-    if (raw !== null && Number.isFinite(Number(raw))) {
+    const ok = raw !== null && (input.kind === 'choice' ? input.options.some(([v]) => v === raw) : Number.isFinite(Number(raw)));
+    if (ok) {
       state.values[input.id] = raw;
       state.passthrough.set(input.id, raw);
     }
