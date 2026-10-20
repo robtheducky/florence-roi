@@ -202,6 +202,7 @@ def main():
             "marketing": r[col["Organization Marketing Name"]].strip(),
             "parent": r[col["Parent Organization"]].strip(),
             "snp": r[col["SNP"]].strip() == "Yes",
+            "disaster": {h.split()[0]: pct(r[i]) for h, i in col.items() if h.endswith("Disaster %")},
             "partC": pct(r[col[f"{star_year} Part C Summary"]]),
             "partD": pct(r[col[f"{star_year} Part D Summary"]]),
             "overall": pct(r[overall_col]),
@@ -244,7 +245,7 @@ def main():
             }
         contracts.append({
             "id": cid, "name": s["name"], "marketing": s["marketing"], "parent": s["parent"], "orgType": s["orgType"],
-            "snp": s["snp"], "enrollment": enrollment.get(cid), "overall": s["overall"], "partC": s["partC"], "partD": s["partD"],
+            "snp": s["snp"], "disaster": s["disaster"], "enrollment": enrollment.get(cid), "overall": s["overall"], "partC": s["partC"], "partD": s["partD"],
             "measures": measures,
         })
         if enrollment.get(cid) is None:
@@ -276,6 +277,7 @@ def main():
             "Rates and measure stars are the contract's published values; next-star cut points are this year's MA-PD cut points.",
             "Contracts whose overall rating is not numeric (too new, too small, or not applicable) are excluded.",
             "CMS publishes rates and cut points as whole percentages; stars are assigned on unrounded rates, so each gap is uncertain by about 0.5 point.",
+            "A negative cushion means the published measure star is above what this year's rate earns, typically because the disaster policy (extreme and uncontrollable circumstances) let the contract keep a prior-year star. See each contract's Disaster % columns.",
         ],
     }
     json.dump({"meta": meta, "contracts": contracts}, open(OUT, "w"), separators=(",", ":"))
