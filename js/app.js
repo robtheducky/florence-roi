@@ -373,18 +373,18 @@ function renderPilot(r) {
   const nowTag = { adherence: state.values.targeting === 'gap' ? tag('assumption') : tag('cms'), readmit: readmitKnown ? tag('cms') : tag('median') };
   $('scorecard').innerHTML = `<thead><tr>
       <th scope="col">Measure</th><th scope="col" class="num">Now</th><th scope="col" class="num">Target</th>
-      <th scope="col" class="num">Needed per group ${info('Patients per group (program and comparison) to detect the target with 95% confidence and 80% power. Two-proportion z-test.', 'About needed per group')}</th>
-      <th scope="col" class="num">Pilot has</th>
-      <th scope="col" class="num">At full scale: months to an answer ${info(`Months of continuous enrollment at the ACO\u2019s full-scale volume, plus the measurement window and about ${STUDY.claimsLagMonths} months of claims lag. Assumes delivery never lapses.`, 'About months to an answer')}</th>
-      <th scope="col">Provable in pilot? ${info('<strong>Yes:</strong> pilot is large enough to show the effect.<br><strong>No:</strong> too small; treat as directional.<br><strong>Counted:</strong> measured directly, no comparison needed.', 'About provable')}</th></tr></thead>
+      <th scope="col" class="num">Per group ${info('Patients per group (program and comparison) to detect the target with 95% confidence and 80% power. Two-proportion z-test.', 'About needed per group')}</th>
+      <th scope="col" class="num">Pilot</th>
+      <th scope="col" class="num">Months at scale ${info(`Months of continuous enrollment at the ACO\u2019s full-scale volume, plus the measurement window and about ${STUDY.claimsLagMonths} months of claims lag. Assumes delivery never lapses.`, 'About months to an answer')}</th>
+      <th scope="col">Provable? ${info('<strong>Yes:</strong> pilot is large enough to show the effect.<br><strong>No:</strong> too small; treat as directional.<br><strong>Counted:</strong> measured directly, no comparison needed.', 'About provable')}</th></tr></thead>
     <tbody>${r.scorecard.map((row) => `<tr>
       <th scope="row">${esc(row.metric)}<div class="row-sub">${esc(row.measure)}</div></th>
-      <td class="num">${cell(row.baseline, row.format)} ${nowTag[row.id] ?? ''}</td>
+      <td class="num">${row.baseline === null ? '<span class="muted">None yet</span>' : `${cell(row.baseline, row.format)} ${nowTag[row.id] ?? ''}`}</td>
       <td class="num strong">${cell(row.target, row.format)}</td>
-      <td class="num">${row.required === null ? '<span class="muted">n/a</span>' : esc(fmt(row.required, 'number0'))}</td>
+      <td class="num">${row.required === null ? `<span class="muted">Not needed</span>${info(`Counted directly from the program, so there is no comparison group. With ${esc(fmt(row.have, 'number0'))} ${row.id === 'completion' ? 'discharges' : 'patients'}, a ${esc(fmt(row.target, 'percent0'))} rate is accurate to \u00b1${esc(fmt(1.96 * Math.sqrt((row.target * (1 - row.target)) / Math.max(1, row.have)), 'percent1'))} (95% confidence).`, 'About counted measures')}` : esc(fmt(row.required, 'number0'))}</td>
       <td class="num">${esc(fmt(row.have, 'number0'))}</td>
-      <td class="num">${study[row.id] ? (study[row.id].totalMonths === null ? 'Never' : esc(fmt(study[row.id].totalMonths, 'number0'))) : '<span class="muted">n/a</span>'}</td>
-      <td>${row.provable === null ? '<span class="pill pill-direct">Counted</span>' : row.provable ? '<span class="pill pill-yes">Yes</span>' : '<span class="pill pill-no">No</span>'}</td>
+      <td class="num">${study[row.id] ? (study[row.id].totalMonths === null ? 'Never' : esc(fmt(study[row.id].totalMonths, 'number0'))) : '<span class="muted">From launch</span>'}</td>
+      <td>${row.provable === null ? `<span class="pill pill-direct">Counted, \u00b1${esc(fmt(1.96 * Math.sqrt((row.target * (1 - row.target)) / Math.max(1, row.have)), 'percent1'))}</span>` : row.provable ? '<span class="pill pill-yes">Yes</span>' : '<span class="pill pill-no">No</span>'}</td>
     </tr>`).join('')}</tbody>`;
 }
 

@@ -157,8 +157,9 @@ h1 { margin: 0; font-size: 24px; line-height: 1.2; }
 .data-table .num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .data-table .strong { font-weight: 700; }
 .row-sub { font-weight: 400; font-size: 12px; color: var(--ink-3); }
-.scorecard { min-width: 620px; }
-.pill { display: inline-block; font-size: 12px; font-weight: 700; padding: 2px 10px; border-radius: 99px; }
+.scorecard { min-width: 720px; }
+.scorecard tbody th { min-width: 200px; }
+.pill { display: inline-block; font-size: 12px; font-weight: 700; padding: 2px 10px; border-radius: 99px; white-space: nowrap; }
 .pill-yes { background: var(--accent); color: #fff; }
 .pill-no { background: #f6e3df; color: var(--neg); border: 1px solid #e7b9ae; }
 .pill-direct { background: var(--bg); color: var(--ink-2); border: 1px solid var(--line); }
